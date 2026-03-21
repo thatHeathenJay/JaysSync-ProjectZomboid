@@ -90,7 +90,7 @@ end
 ------------------------------------------------------------
 
 local function getMoveState(player)
-    if player:isSneaking() then return JaysSync.STATE_CROUCH end
+    if player.isSneaking and player:isSneaking() then return JaysSync.STATE_CROUCH end
     if player.isSprinting and player:isSprinting() then return JaysSync.STATE_SPRINT end
     if player.isRunning and player:isRunning() then return JaysSync.STATE_RUN end
     local prev = trackedPlayers[player:getOnlineID()]
@@ -110,7 +110,8 @@ local function buildPlayerSnapshot(player, prev, dt)
         return nil, nil
     end
 
-    local dir = player:getDirectionAngle()
+    local okDir, dir = pcall(function() return player:getDirectionAngle() end)
+    if not okDir or not JaysSync.isFinite(dir) then dir = 0 end
     local moveState = getMoveState(player)
 
     local ok, bodyDamage = pcall(function() return player:getBodyDamage() end)
@@ -123,6 +124,9 @@ local function buildPlayerSnapshot(player, prev, dt)
     if prev and dt > 0 then
         vx = (x - prev.x) / dt
         vy = (y - prev.y) / dt
+        local maxV = JaysSync.MAX_VELOCITY
+        if vx > maxV then vx = maxV elseif vx < -maxV then vx = -maxV end
+        if vy > maxV then vy = maxV elseif vy < -maxV then vy = -maxV end
     end
 
     local snapshot = {
@@ -142,12 +146,16 @@ local function broadcastAllPlayers()
     for i = 0, players:size() - 1 do
         local player = players:get(i)
         if player then
-            local ok, snapshot, newTracked = JaysSync.safeCall("buildPlayerSnapshot",
-                buildPlayerSnapshot, player, trackedPlayers[player:getOnlineID()],
-                trackedPlayers[player:getOnlineID()] and (jsTick - trackedPlayers[player:getOnlineID()].jsTick) or 0)
-            if ok and snapshot then
-                trackedPlayers[player:getOnlineID()] = newTracked
-                batch[#batch + 1] = snapshot
+            local okId, pid = pcall(function() return player:getOnlineID() end)
+            if okId and pid then
+                local prev = trackedPlayers[pid]
+                local dt = prev and (jsTick - prev.jsTick) or 0
+                local ok, snapshot, newTracked = JaysSync.safeCall("buildPlayerSnapshot",
+                    buildPlayerSnapshot, player, prev, dt)
+                if ok and snapshot then
+                    trackedPlayers[pid] = newTracked
+                    batch[#batch + 1] = snapshot
+                end
             end
         end
     end
@@ -194,22 +202,36 @@ end
 ------------------------------------------------------------
 
 local function buildZombieSnapshot(zomb, prev, dt)
-    local id = zomb:getOnlineID()
-    local x, y, z = zomb:getX(), zomb:getY(), zomb:getZ()
+    local okId, id = pcall(function() return zomb:getOnlineID() end)
+    if not okId or not id then return nil end
+
+    local okPos, x, y, z = pcall(function() return zomb:getX(), zomb:getY(), zomb:getZ() end)
+    if not okPos then return nil end
 
     if not JaysSync.isValidPos(x) or not JaysSync.isValidPos(y) then
-        JaysSync.warn("Invalid zombie position for", id, "x:", x, "y:", y)
+        JaysSync.warn("buildZombieSnapshot", "Invalid position for", id, "x:", x, "y:", y)
         return nil
     end
 
-    local dir = zomb:getDirectionAngle()
-    local health = zomb:getHealth()
-    local crawling = zomb:isCrawling()
+    local dir = 0
+    if zomb.getDirectionAngle then
+        local okDir, d = pcall(function() return zomb:getDirectionAngle() end)
+        if okDir and JaysSync.isFinite(d) then dir = d end
+    end
+
+    local okH, health = pcall(function() return zomb:getHealth() end)
+    if not okH then health = 1 end
+
+    local okC, crawling = pcall(function() return zomb:isCrawling() end)
+    if not okC then crawling = false end
 
     local vx, vy = 0, 0
     if prev and dt > 0 then
         vx = (x - prev.x) / dt
         vy = (y - prev.y) / dt
+        local maxV = JaysSync.MAX_VELOCITY
+        if vx > maxV then vx = maxV elseif vx < -maxV then vx = -maxV end
+        if vy > maxV then vy = maxV elseif vy < -maxV then vy = -maxV end
     end
 
     local snapshot = {
@@ -230,35 +252,45 @@ local function broadcastZombies()
     if #playerPosCache == 0 then return end
 
     -- Single pass: update trackedZombies from current zombieList
+    -- Each zombie is individually pcall-wrapped so one failure doesn't kill the broadcast
     local seen = {}
     for i = 0, zombieList:size() - 1 do
         local zomb = zombieList:get(i)
         if zomb then
-            local zOk, zHealth = pcall(function() return zomb:getHealth() end)
-            if zOk and zHealth and zHealth > 0 then
+            pcall(function()
+                local zHealth = zomb:getHealth()
+                if not zHealth or zHealth <= 0 then return end
                 local id = zomb:getOnlineID()
-                if id then
-                    local zx, zy = zomb:getX(), zomb:getY()
-                    if JaysSync.isValidPos(zx) and JaysSync.isValidPos(zy) then
-                        local dSq = nearestPlayerDistSq(zx, zy)
-                        if dSq <= syncDistSq then
-                            seen[id] = true
-                            local prev = trackedZombies[id]
-                            local dt = prev and (jsTick - prev.jsTick) or 0
-                            trackedZombies[id] = {
-                                x = zx, y = zy, z = zomb:getZ(),
-                                dir = zomb:getDirectionAngle(),
-                                health = zHealth,
-                                crawling = zomb:isCrawling(),
-                                distSq = dSq,
-                                jsTick = jsTick,
-                                sentImmediate = prev and prev.sentImmediate or 0,
-                                _prevX = prev and prev.x, _prevY = prev and prev.y, _dt = dt
-                            }
-                        end
-                    end
+                if not id then return end
+                local zx, zy = zomb:getX(), zomb:getY()
+                if not JaysSync.isValidPos(zx) or not JaysSync.isValidPos(zy) then return end
+                local dSq = nearestPlayerDistSq(zx, zy)
+                if dSq > syncDistSq then return end
+
+                seen[id] = true
+                local prev = trackedZombies[id]
+                local dt = prev and (jsTick - prev.jsTick) or 0
+
+                local dir = 0
+                if zomb.getDirectionAngle then
+                    local d = zomb:getDirectionAngle()
+                    if JaysSync.isFinite(d) then dir = d end
                 end
-            end
+
+                local crawling = false
+                if zomb.isCrawling then crawling = zomb:isCrawling() end
+
+                trackedZombies[id] = {
+                    x = zx, y = zy, z = zomb:getZ(),
+                    dir = dir,
+                    health = zHealth,
+                    crawling = crawling,
+                    distSq = dSq,
+                    jsTick = jsTick,
+                    sentImmediate = prev and prev.sentImmediate or 0,
+                    _prevX = prev and prev.x, _prevY = prev and prev.y, _dt = dt
+                }
+            end)
         end
     end
 
@@ -360,28 +392,27 @@ local function checkZombieThreatProximity()
         if #batch >= maxPerTick then break end
         local zomb = zombieList:get(i)
         if zomb then
-            local zOk, id = pcall(function() return zomb:getOnlineID() end)
-            if zOk and id then
+            pcall(function()
+                local id = zomb:getOnlineID()
+                if not id then return end
                 local last = lastThreatSync[id]
-                if not last or (jsTick - last) >= cooldown then
-                    local zx, zy = zomb:getX(), zomb:getY()
-                    if JaysSync.isValidPos(zx) and JaysSync.isValidPos(zy) then
-                        local dSq = nearestPlayerDistSq(zx, zy)
-                        if dSq <= threatDistSq then
-                            lastThreatSync[id] = jsTick
-                            local prev = trackedZombies[id]
-                            local dt = prev and (jsTick - prev.jsTick) or 0
-                            local snapshot = buildZombieSnapshot(zomb, prev, dt)
-                            if snapshot then
-                                batch[#batch + 1] = snapshot
-                                if trackedZombies[id] then
-                                    trackedZombies[id].sentImmediate = jsTick
-                                end
-                            end
-                        end
+                if last and (jsTick - last) < cooldown then return end
+                local zx, zy = zomb:getX(), zomb:getY()
+                if not JaysSync.isValidPos(zx) or not JaysSync.isValidPos(zy) then return end
+                local dSq = nearestPlayerDistSq(zx, zy)
+                if dSq > threatDistSq then return end
+
+                lastThreatSync[id] = jsTick
+                local prev = trackedZombies[id]
+                local dt = prev and (jsTick - prev.jsTick) or 0
+                local snapshot = buildZombieSnapshot(zomb, prev, dt)
+                if snapshot then
+                    batch[#batch + 1] = snapshot
+                    if trackedZombies[id] then
+                        trackedZombies[id].sentImmediate = jsTick
                     end
                 end
-            end
+            end)
         end
     end
 
@@ -428,7 +459,13 @@ local function buildVehicleSnapshot(vehicle, prev, dt)
     if prev and dt > 0 then
         vx = (x - prev.x) / dt
         vy = (y - prev.y) / dt
+        local maxV = JaysSync.MAX_VELOCITY
+        if vx > maxV then vx = maxV elseif vx < -maxV then vx = -maxV end
+        if vy > maxV then vy = maxV elseif vy < -maxV then vy = -maxV end
     end
+
+    -- Validate angle
+    if angle and not JaysSync.isFinite(angle) then angle = nil end
 
     local snapshot = {
         id = id, x = x, y = y, z = z,
@@ -597,29 +634,34 @@ end
 
 local function onTick()
     jsTick = jsTick + 1
+    JaysSync._globalTick = jsTick
 
-    -- Pre-compute player positions (needed by threat proximity every tick, and broadcasts)
     local zombieEnabled = JaysSync.ZOMBIE_SYNC_ENABLED
     local vehicleEnabled = JaysSync.VEHICLE_SYNC_ENABLED
-    refreshPlayerPositions()
 
-    -- Staggered broadcasts (each wrapped so one failure doesn't block others)
-    local isBroadcastTick = (jsTick % JaysSync.BROADCAST_INTERVAL == 0)
-                         or (zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
-                         or (vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
+    -- Only refresh player positions when something needs them this tick
+    local isPlayerBroadcast = (jsTick % JaysSync.BROADCAST_INTERVAL == 0)
+    local isZombieBroadcast = zombieEnabled and (jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
+    local isVehicleBroadcast = vehicleEnabled and (jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
+    local isBroadcastTick = isPlayerBroadcast or isZombieBroadcast or isVehicleBroadcast
+    local needsPlayerPos = isBroadcastTick or zombieEnabled
+
+    if needsPlayerPos then
+        refreshPlayerPositions()
+    end
 
     -- Threat proximity: sync zombies within melee range (skip on broadcast ticks to avoid packet burst)
     if zombieEnabled and not isBroadcastTick then
         JaysSync.safeCall("threatProximity", checkZombieThreatProximity)
     end
 
-    if jsTick % JaysSync.BROADCAST_INTERVAL == 0 then
+    if isPlayerBroadcast then
         JaysSync.safeCall("broadcastPlayers", broadcastAllPlayers)
     end
-    if zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0 then
+    if isZombieBroadcast then
         JaysSync.safeCall("broadcastZombies", broadcastZombies)
     end
-    if vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0 then
+    if isVehicleBroadcast then
         JaysSync.safeCall("broadcastVehicles", broadcastVehicles)
     end
 

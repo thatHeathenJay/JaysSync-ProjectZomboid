@@ -211,27 +211,39 @@ local function applyToVehicle(vehicle, state, finalX, finalY, config)
         end)
     end
 
-    -- Vehicle visual/audio state (only set when changed)
-    pcall(function()
-        if state.hdl ~= nil then
+    -- Vehicle visual/audio state (each independently pcall-wrapped)
+    if state.hdl ~= nil then
+        pcall(function()
             local on = state.hdl == 1
             if vehicle:getHeadlightsOn() ~= on then vehicle:setHeadlightsOn(on) end
-        end
-        if state.stp ~= nil then
+        end)
+    end
+    if state.stp ~= nil then
+        pcall(function()
             local on = state.stp == 1
             if vehicle:getStoplightsOn() ~= on then vehicle:setStoplightsOn(on) end
-        end
-        if state.lbm ~= nil and vehicle.hasLightbar and vehicle:hasLightbar() then
-            if vehicle:getLightbarLightsMode() ~= state.lbm then vehicle:setLightbarLightsMode(state.lbm) end
-        end
-        if state.lbs ~= nil and vehicle.hasLightbar and vehicle:hasLightbar() then
-            if vehicle:getLightbarSirenMode() ~= state.lbs then vehicle:setLightbarSirenMode(state.lbs) end
-        end
-        if state.alm ~= nil then
+        end)
+    end
+    if state.lbm ~= nil then
+        pcall(function()
+            if vehicle.hasLightbar and vehicle:hasLightbar() then
+                if vehicle:getLightbarLightsMode() ~= state.lbm then vehicle:setLightbarLightsMode(state.lbm) end
+            end
+        end)
+    end
+    if state.lbs ~= nil then
+        pcall(function()
+            if vehicle.hasLightbar and vehicle:hasLightbar() then
+                if vehicle:getLightbarSirenMode() ~= state.lbs then vehicle:setLightbarSirenMode(state.lbs) end
+            end
+        end)
+    end
+    if state.alm ~= nil then
+        pcall(function()
             local armed = state.alm == 1
             if vehicle:isAlarmed() ~= armed then vehicle:setAlarmed(armed) end
-        end
-    end)
+        end)
+    end
 end
 
 ------------------------------------------------------------
@@ -321,8 +333,12 @@ local function onClientTickInner()
 
     -- Players
     local toRemove = {}
+    local hasGetPlayerByOnlineID = type(getPlayerByOnlineID) == "function"
+    if not hasGetPlayerByOnlineID then
+        JaysSync.warn("getPlayerByOnlineID", "function not available — player sync disabled")
+    end
     for id, state in pairs(remotePlayers) do
-        if id == localID then
+        if id == localID or not hasGetPlayerByOnlineID then
             toRemove[#toRemove + 1] = id
         else
             local okP, player = pcall(getPlayerByOnlineID, id)
@@ -495,6 +511,7 @@ local function onInitGlobalModData()
     remoteZombies = {}
     remoteVehicles = {}
     clientTick = 0
+    lastCombatTick = -999
 end
 
 Events.OnInitGlobalModData.Add(onInitGlobalModData)

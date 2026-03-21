@@ -71,6 +71,16 @@ JaysSync.VEHICLE_STATE_SYNC_ENABLED = true
 JaysSync.BATCH_SIZE                 = 50 -- max entities per packet to stay under UDP limits
 
 ------------------------------------------------------------
+-- Velocity cap (tiles per tick)
+------------------------------------------------------------
+JaysSync.MAX_VELOCITY               = 15 -- cap to prevent teleport prediction spikes
+
+------------------------------------------------------------
+-- Internal tick counter (shared for warn rate-limiting)
+------------------------------------------------------------
+JaysSync._globalTick                = 0
+
+------------------------------------------------------------
 -- World bounds (PZ map extents)
 ------------------------------------------------------------
 JaysSync.WORLD_MIN                  = -1000
@@ -91,9 +101,26 @@ function JaysSync.log(...)
     end
 end
 
--- Non-debug error logging. Always prints.
-function JaysSync.warn(...)
-    print("[JaysSync WARN]", ...)
+-- Non-debug error logging. Always prints. Rate-limited to prevent console spam.
+local _warnCounts = {}
+local _warnResetTick = 0
+local WARN_LIMIT = 5 -- max warns per context per 300 ticks
+
+function JaysSync.warn(context, ...)
+    -- Reset counts every 300 ticks (~10s)
+    local tick = JaysSync._globalTick or 0
+    if tick - _warnResetTick > 300 then
+        _warnCounts = {}
+        _warnResetTick = tick
+    end
+    local count = _warnCounts[context] or 0
+    if count >= WARN_LIMIT then return end
+    _warnCounts[context] = count + 1
+    if count == WARN_LIMIT - 1 then
+        print("[JaysSync WARN]", context, "... (further warnings suppressed)")
+    else
+        print("[JaysSync WARN]", context, ...)
+    end
 end
 
 -- Validate a number is finite and within world bounds.
@@ -104,6 +131,14 @@ function JaysSync.isValidPos(n)
     -- Inf check
     if n == math.huge or n == -math.huge then return false end
     if n < JaysSync.WORLD_MIN or n > JaysSync.WORLD_MAX then return false end
+    return true
+end
+
+-- Validate a number is finite (no bounds check, for angles/velocity).
+function JaysSync.isFinite(n)
+    if type(n) ~= "number" then return false end
+    if n ~= n then return false end
+    if n == math.huge or n == -math.huge then return false end
     return true
 end
 
@@ -148,19 +183,23 @@ end
 
 -- Shortest-arc angle interpolation (degrees). Returns interpolated angle.
 function JaysSync.lerpAngle(current, target, t)
+    if not JaysSync.isFinite(current) then return target end
+    if not JaysSync.isFinite(target) then return current end
     local delta = target - current
-    while delta > 180 do delta = delta - 360 end
-    while delta < -180 do delta = delta + 360 end
+    delta = delta % 360
+    if delta > 180 then delta = delta - 360 end
     if math.abs(delta) < 0.5 then return target end
     return current + delta * t
 end
 
 -- Shortest-arc angle interpolation (radians). Returns interpolated angle.
 function JaysSync.lerpAngleRad(current, target, t)
+    if not JaysSync.isFinite(current) then return target end
+    if not JaysSync.isFinite(target) then return current end
     local pi = math.pi
-    local delta = target - current
-    while delta > pi do delta = delta - pi * 2 end
-    while delta < -pi do delta = delta + pi * 2 end
+    local twoPi = pi * 2
+    local delta = ((target - current) % twoPi)
+    if delta > pi then delta = delta - twoPi end
     if math.abs(delta) < 0.01 then return target end
     return current + delta * t
 end
