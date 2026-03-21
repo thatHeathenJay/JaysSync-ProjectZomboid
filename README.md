@@ -101,3 +101,26 @@ All sync follows the same pattern:
 5. Client advances dead reckoning each tick using velocity with decay
 6. Client blends out prediction error smoothly over time
 7. Client lerps the game object toward the final predicted position
+
+## Changelog
+
+### v1.1 - Production Hardening
+- All Java object access wrapped in pcall — mod never crashes the server or client
+- Position validation (NaN, Infinity, world bounds) on all snapshots
+- Packet chunking (batches of 50) to stay under UDP size limits
+- Driver exclusion: vehicle sync skips the vehicle the local player is driving
+- Whitelist copy on network data to prevent internal field leaks
+- Zombie health/crawling only updated when value actually changed
+- Fixed `zombie` namespace collision in server safeSend
+- Always-on `warn()` logging for errors (separate from debug toggle)
+- Each broadcast wrapped independently so one failure doesn't block others
+
+### v1.0 - Initial Release
+- Player, zombie, and vehicle position sync with dead reckoning
+- Server-authoritative architecture with staggered broadcasts
+- Immediate sync on combat events (OnHitZombie, OnZombieDead, OnZombieUpdate, OnAIStateChange)
+- O(1) entity lookups via ID caches on client
+- Pre-computed player position cache on server for efficient distance filtering
+- Deduplication between immediate and periodic syncs
+- Stale cache purging to prevent memory leaks
+- 13 configurable sandbox options
