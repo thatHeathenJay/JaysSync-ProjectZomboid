@@ -281,18 +281,21 @@ end
 -- Per-tick client update
 ------------------------------------------------------------
 
-local function onClientTick()
-    clientTick = clientTick + 1
+local function tableNotEmpty(t)
+    for _ in pairs(t) do return true end
+    return false
+end
 
+local function onClientTickInner()
     local localPlayer = getPlayer()
     if not localPlayer then return end
     if not localPlayer.getOnlineID then return end
-    local okId, localID = pcall(function() return localPlayer:getOnlineID() end)
-    if not okId or not localID then return end
+    local localID = localPlayer:getOnlineID()
+    if not localID then return end
 
     -- Rebuild lookup caches only when we have remote zombies or vehicles
-    local hasZombies = next(remoteZombies) ~= nil
-    local hasVehicles = next(remoteVehicles) ~= nil
+    local hasZombies = tableNotEmpty(remoteZombies)
+    local hasVehicles = tableNotEmpty(remoteVehicles)
     if hasZombies or hasVehicles then
         rebuildLookupCaches()
     end
@@ -373,6 +376,11 @@ local function onClientTick()
         end
         for i = 1, #toRemove do remoteVehicles[toRemove[i]] = nil end
     end
+end
+
+local function onClientTick()
+    clientTick = clientTick + 1
+    JaysSync.safeCall("onClientTick", onClientTickInner)
 end
 
 ------------------------------------------------------------
