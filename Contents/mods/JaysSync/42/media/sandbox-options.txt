@@ -1,6 +1,5 @@
 VERSION = 1,
 
--- Player Sync
 option JaysSync.BroadcastInterval
 {
     type = integer,
@@ -31,7 +30,6 @@ option JaysSync.SnapDistance
     translation = JaysSync_SnapDistance,
 }
 
--- Zombie Sync
 option JaysSync.ZombieSyncEnabled
 {
     type = boolean,
@@ -90,7 +88,6 @@ option JaysSync.ZombieSnapDistance
     translation = JaysSync_ZombieSnapDistance,
 }
 
--- Vehicle Sync
 option JaysSync.VehicleSyncEnabled
 {
     type = boolean,
@@ -147,7 +144,6 @@ option JaysSync.VehicleSnapDistance
     translation = JaysSync_VehicleSnapDistance,
 }
 
--- Debug
 option JaysSync.DebugLogs
 {
     type = boolean,
