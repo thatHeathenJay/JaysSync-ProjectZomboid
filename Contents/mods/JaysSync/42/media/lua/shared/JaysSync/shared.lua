@@ -1,55 +1,55 @@
-JaysSync = JaysSync or {}
+JaysSync                            = JaysSync or {}
 
-JaysSync.MOD_ID = "JaysSync"
-JaysSync.DEBUG = false
+JaysSync.MOD_ID                     = "JaysSync"
+JaysSync.DEBUG                      = true
 
 ------------------------------------------------------------
 -- Network commands (2-char for compact packets)
 ------------------------------------------------------------
-JaysSync.CMD_PLAYER_STATES    = "ps"
-JaysSync.CMD_PLAYER_IMMEDIATE = "pi"
-JaysSync.CMD_ZOMBIE_STATES    = "zs"
-JaysSync.CMD_ZOMBIE_IMMEDIATE = "zi"
-JaysSync.CMD_VEHICLE_STATES   = "vs"
-JaysSync.CMD_VEHICLE_IMMEDIATE = "vi"
+JaysSync.CMD_PLAYER_STATES          = "ps"
+JaysSync.CMD_PLAYER_IMMEDIATE       = "pi"
+JaysSync.CMD_ZOMBIE_STATES          = "zs"
+JaysSync.CMD_ZOMBIE_IMMEDIATE       = "zi"
+JaysSync.CMD_VEHICLE_STATES         = "vs"
+JaysSync.CMD_VEHICLE_IMMEDIATE      = "vi"
 
 ------------------------------------------------------------
 -- Player sync config
 ------------------------------------------------------------
-JaysSync.BROADCAST_INTERVAL  = 20       -- ticks between full player broadcasts
-JaysSync.IMMEDIATE_COOLDOWN  = 4        -- min ticks between immediate syncs per player
-JaysSync.MIN_MOVE_DELTA_SQ   = 0.25     -- 0.5^2
-JaysSync.INTERP_SPEED        = 0.35     -- client lerp factor (0-1)
-JaysSync.SNAP_DISTANCE       = 10.0     -- teleport threshold (squares)
-JaysSync.PREDICT_DECAY       = 0.92     -- velocity decay per tick
-JaysSync.STALE_TICKS         = 120      -- drop after N ticks without update
-JaysSync.CORRECTION_BLEND    = 0.25     -- error blend-out rate
+JaysSync.BROADCAST_INTERVAL         = 20 -- ticks between full player broadcasts
+JaysSync.IMMEDIATE_COOLDOWN         = 4 -- min ticks between immediate syncs per player
+JaysSync.MIN_MOVE_DELTA_SQ          = 0.25 -- 0.5^2
+JaysSync.INTERP_SPEED               = 0.35 -- client lerp factor (0-1)
+JaysSync.SNAP_DISTANCE              = 10.0 -- teleport threshold (squares)
+JaysSync.PREDICT_DECAY              = 0.92 -- velocity decay per tick
+JaysSync.STALE_TICKS                = 120 -- drop after N ticks without update
+JaysSync.CORRECTION_BLEND           = 0.25 -- error blend-out rate
 
 -- Movement states
-JaysSync.STATE_IDLE    = 0
-JaysSync.STATE_WALK    = 1
-JaysSync.STATE_RUN     = 2
-JaysSync.STATE_SPRINT  = 3
-JaysSync.STATE_CROUCH  = 4
-JaysSync.STATE_PRONE   = 5
+JaysSync.STATE_IDLE                 = 0
+JaysSync.STATE_WALK                 = 1
+JaysSync.STATE_RUN                  = 2
+JaysSync.STATE_SPRINT               = 3
+JaysSync.STATE_CROUCH               = 4
+JaysSync.STATE_PRONE                = 5
 
 ------------------------------------------------------------
 -- Zombie sync config
 ------------------------------------------------------------
-JaysSync.ZOMBIE_BROADCAST_INTERVAL = 30    -- ticks between zombie broadcasts
-JaysSync.ZOMBIE_SYNC_DISTANCE      = 100   -- squares
-JaysSync.MAX_TRACKED_ZOMBIES       = 150   -- hard cap
-JaysSync.ZOMBIE_IMMEDIATE_COOLDOWN = 3
-JaysSync.ZOMBIE_STALE_TICKS        = 300
-JaysSync.ZOMBIE_SNAP_DISTANCE      = 6.0
-JaysSync.ZOMBIE_INTERP_SPEED       = 0.40
-JaysSync.ZOMBIE_PREDICT_DECAY      = 0.88
+JaysSync.ZOMBIE_BROADCAST_INTERVAL  = 30 -- ticks between zombie broadcasts
+JaysSync.ZOMBIE_SYNC_DISTANCE       = 100 -- squares
+JaysSync.MAX_TRACKED_ZOMBIES        = 150 -- hard cap
+JaysSync.ZOMBIE_IMMEDIATE_COOLDOWN  = 3
+JaysSync.ZOMBIE_STALE_TICKS         = 300
+JaysSync.ZOMBIE_SNAP_DISTANCE       = 6.0
+JaysSync.ZOMBIE_INTERP_SPEED        = 0.40
+JaysSync.ZOMBIE_PREDICT_DECAY       = 0.88
 
 ------------------------------------------------------------
 -- Vehicle sync config
 ------------------------------------------------------------
-JaysSync.VEHICLE_BROADCAST_INTERVAL = 25   -- ticks between vehicle broadcasts
-JaysSync.VEHICLE_SYNC_DISTANCE      = 140  -- squares
+JaysSync.VEHICLE_BROADCAST_INTERVAL = 25  -- ticks between vehicle broadcasts
+JaysSync.VEHICLE_SYNC_DISTANCE      = 140 -- squares
 JaysSync.VEHICLE_SNAP_DISTANCE      = 8.0
 JaysSync.VEHICLE_INTERP_SPEED       = 0.50
 JaysSync.VEHICLE_PREDICT_DECAY      = 0.95
@@ -65,13 +65,13 @@ JaysSync.VEHICLE_STATE_SYNC_ENABLED = true
 ------------------------------------------------------------
 -- Packet chunking
 ------------------------------------------------------------
-JaysSync.BATCH_SIZE = 50  -- max entities per packet to stay under UDP limits
+JaysSync.BATCH_SIZE                 = 50 -- max entities per packet to stay under UDP limits
 
 ------------------------------------------------------------
 -- World bounds (PZ map extents)
 ------------------------------------------------------------
-JaysSync.WORLD_MIN = -1000
-JaysSync.WORLD_MAX = 50000
+JaysSync.WORLD_MIN                  = -1000
+JaysSync.WORLD_MAX                  = 50000
 
 ------------------------------------------------------------
 -- Helpers
@@ -108,8 +108,8 @@ end
 function JaysSync.isValidSnapshot(data)
     if not data then return false end
     return JaysSync.isValidPos(data.x)
-       and JaysSync.isValidPos(data.y)
-       and (data.z == nil or JaysSync.isValidPos(data.z))
+        and JaysSync.isValidPos(data.y)
+        and (data.z == nil or JaysSync.isValidPos(data.z))
 end
 
 -- Safe pcall wrapper that logs errors instead of crashing.

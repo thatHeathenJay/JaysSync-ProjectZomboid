@@ -6,27 +6,27 @@ JaysSync.log("Client script loaded")
 -- Remote entity state tables
 ------------------------------------------------------------
 
-local remotePlayers  = {}  -- [onlineID] = {x,y,z,vx,vy,dir,ms,hp,receivedTick,predX,predY,errorX,errorY}
-local remoteZombies  = {}  -- [onlineID] = {x,y,z,vx,vy,dir,hp,cr,receivedTick,predX,predY,errorX,errorY}
-local remoteVehicles = {}  -- [vehicleID] = {x,y,z,vx,vy,sp,ang,towId,towBy,receivedTick,predX,predY,errorX,errorY}
-local clientTick = 0
+local remotePlayers  = {} -- [onlineID] = {x,y,z,vx,vy,dir,ms,hp,receivedTick,predX,predY,errorX,errorY}
+local remoteZombies  = {} -- [onlineID] = {x,y,z,vx,vy,dir,hp,cr,receivedTick,predX,predY,errorX,errorY}
+local remoteVehicles = {} -- [vehicleID] = {x,y,z,vx,vy,sp,ang,towId,towBy,receivedTick,predX,predY,errorX,errorY}
+local clientTick     = 0
 
 -- Per-entity-type config (set in onInitGlobalModData from sandbox vars)
-local playerConfig = {
+local playerConfig   = {
     decay = JaysSync.PREDICT_DECAY,
     correctionBlend = JaysSync.CORRECTION_BLEND,
     interpSpeed = JaysSync.INTERP_SPEED,
     snapDist = JaysSync.SNAP_DISTANCE,
     staleTicks = JaysSync.STALE_TICKS,
 }
-local zombieConfig = {
+local zombieConfig   = {
     decay = JaysSync.ZOMBIE_PREDICT_DECAY,
     correctionBlend = JaysSync.CORRECTION_BLEND,
     interpSpeed = JaysSync.ZOMBIE_INTERP_SPEED,
     snapDist = JaysSync.ZOMBIE_SNAP_DISTANCE,
     staleTicks = JaysSync.ZOMBIE_STALE_TICKS,
 }
-local vehicleConfig = {
+local vehicleConfig  = {
     decay = JaysSync.VEHICLE_PREDICT_DECAY,
     correctionBlend = JaysSync.CORRECTION_BLEND,
     interpSpeed = JaysSync.VEHICLE_INTERP_SPEED,
@@ -35,17 +35,17 @@ local vehicleConfig = {
 }
 
 -- Client-side ID lookup caches (rebuilt per tick when needed)
-local zombieById  = {}
-local vehicleById = {}
+local zombieById     = {}
+local vehicleById    = {}
 
 ------------------------------------------------------------
 -- Snapshot field whitelists (only these fields are copied from network data)
 ------------------------------------------------------------
 
-local playerFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "ms", "hp" }
-local zombieFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "hp", "cr" }
-local vehicleFields = { "id", "x", "y", "z", "vx", "vy", "sp", "ang", "towId", "towBy",
-                        "eng", "hdl", "stp", "lbm", "lbs", "alm" }
+local playerFields   = { "id", "x", "y", "z", "vx", "vy", "dir", "ms", "hp" }
+local zombieFields   = { "id", "x", "y", "z", "vx", "vy", "dir", "hp", "cr" }
+local vehicleFields  = { "id", "x", "y", "z", "vx", "vy", "sp", "ang", "towId", "towBy",
+    "eng", "hdl", "stp", "lbm", "lbs", "alm" }
 
 ------------------------------------------------------------
 -- Generic dead reckoning functions
@@ -103,7 +103,7 @@ local function advanceDeadReckoning(state, config, age)
 
     -- Bounds check the final predicted position
     if not JaysSync.isValidPos(fx) or not JaysSync.isValidPos(fy) then
-        return state.x, state.y, false  -- fall back to last known good position
+        return state.x, state.y, false -- fall back to last known good position
     end
 
     return fx, fy, false
@@ -191,7 +191,7 @@ local function applyToZombie(zomb, state, finalX, finalY, config)
 
     if state.hp and state.hp <= 0 then
         pcall(function() zomb:setDead(true) end)
-        return true  -- signal removal
+        return true -- signal removal
     end
     return false
 end
@@ -286,8 +286,9 @@ local function onClientTick()
 
     local localPlayer = getPlayer()
     if not localPlayer then return end
+    if not localPlayer.getOnlineID then return end
     local okId, localID = pcall(function() return localPlayer:getOnlineID() end)
-    if not okId then return end
+    if not okId or not localID then return end
 
     -- Rebuild lookup caches only when we have remote zombies or vehicles
     local hasZombies = next(remoteZombies) ~= nil
@@ -338,7 +339,8 @@ local function onClientTick()
                     if okDead and isDead then
                         toRemove[#toRemove + 1] = id
                     else
-                        local okApply, dead = JaysSync.safeCall("applyToZombie", applyToZombie, zomb, state, fx, fy, zombieConfig)
+                        local okApply, dead = JaysSync.safeCall("applyToZombie", applyToZombie, zomb, state, fx, fy,
+                            zombieConfig)
                         if okApply and dead then toRemove[#toRemove + 1] = id end
                     end
                 end
@@ -382,7 +384,11 @@ local function onServerCommand(module, command, args)
     if not args or type(args) ~= "table" then return end
 
     local localPlayer = getPlayer()
-    local localID = localPlayer and localPlayer:getOnlineID()
+    local localID = nil
+    if localPlayer and localPlayer.getOnlineID then
+        local okId, id = pcall(function() return localPlayer:getOnlineID() end)
+        if okId then localID = id end
+    end
 
     if command == JaysSync.CMD_PLAYER_STATES or command == JaysSync.CMD_PLAYER_IMMEDIATE then
         local snapDistSq = playerConfig.snapDist * playerConfig.snapDist
@@ -392,9 +398,8 @@ local function onServerCommand(module, command, args)
             end
         end
         JaysSync.log("Received", command, "#", #args)
-
     elseif (command == JaysSync.CMD_ZOMBIE_STATES or command == JaysSync.CMD_ZOMBIE_IMMEDIATE)
-           and JaysSync.ZOMBIE_SYNC_ENABLED then
+        and JaysSync.ZOMBIE_SYNC_ENABLED then
         local snapDistSq = zombieConfig.snapDist * zombieConfig.snapDist
         for _, data in ipairs(args) do
             if data and data.id then
@@ -402,9 +407,8 @@ local function onServerCommand(module, command, args)
             end
         end
         JaysSync.log("Received", command, "#", #args)
-
     elseif (command == JaysSync.CMD_VEHICLE_STATES or command == JaysSync.CMD_VEHICLE_IMMEDIATE)
-           and JaysSync.VEHICLE_SYNC_ENABLED then
+        and JaysSync.VEHICLE_SYNC_ENABLED then
         local snapDistSq = vehicleConfig.snapDist * vehicleConfig.snapDist
         for _, data in ipairs(args) do
             if data and data.id then
