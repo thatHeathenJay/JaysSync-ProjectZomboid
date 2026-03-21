@@ -44,7 +44,8 @@ local vehicleById = {}
 
 local playerFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "ms", "hp" }
 local zombieFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "hp", "cr" }
-local vehicleFields = { "id", "x", "y", "z", "vx", "vy", "sp", "ang", "towId", "towBy" }
+local vehicleFields = { "id", "x", "y", "z", "vx", "vy", "sp", "ang", "towId", "towBy",
+                        "eng", "hdl", "stp", "lbm", "lbs", "alm" }
 
 ------------------------------------------------------------
 -- Generic dead reckoning functions
@@ -204,6 +205,28 @@ local function applyToVehicle(vehicle, state, finalX, finalY, config)
             vehicle:setAngleZ(JaysSync.lerpAngleRad(current, state.ang, config.interpSpeed))
         end)
     end
+
+    -- Vehicle visual/audio state (only set when changed)
+    pcall(function()
+        if state.hdl ~= nil then
+            local on = state.hdl == 1
+            if vehicle:getHeadlightsOn() ~= on then vehicle:setHeadlightsOn(on) end
+        end
+        if state.stp ~= nil then
+            local on = state.stp == 1
+            if vehicle:getStoplightsOn() ~= on then vehicle:setStoplightsOn(on) end
+        end
+        if state.lbm ~= nil and vehicle.hasLightbar and vehicle:hasLightbar() then
+            if vehicle:getLightbarLightsMode() ~= state.lbm then vehicle:setLightbarLightsMode(state.lbm) end
+        end
+        if state.lbs ~= nil and vehicle.hasLightbar and vehicle:hasLightbar() then
+            if vehicle:getLightbarSirenMode() ~= state.lbs then vehicle:setLightbarSirenMode(state.lbs) end
+        end
+        if state.alm ~= nil then
+            local armed = state.alm == 1
+            if vehicle:isAlarmed() ~= armed then vehicle:setAlarmed(armed) end
+        end
+    end)
 end
 
 ------------------------------------------------------------

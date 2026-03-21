@@ -377,10 +377,24 @@ local function buildVehicleSnapshot(vehicle, prev, dt)
         vy = (y - prev.y) / dt
     end
 
+    -- Vehicle visual/audio state
+    local okEng, eng = pcall(function() return vehicle:isEngineRunning() end)
+    local okHdl, hdl = pcall(function() return vehicle:getHeadlightsOn() end)
+    local okStp, stp = pcall(function() return vehicle:getStoplightsOn() end)
+    local okLbm, lbm = pcall(function() return vehicle:getLightbarLightsMode() end)
+    local okLbs, lbs = pcall(function() return vehicle:getLightbarSirenMode() end)
+    local okAlm, alm = pcall(function() return vehicle:isAlarmed() end)
+
     local snapshot = {
         id = id, x = x, y = y, z = z,
         vx = vx, vy = vy, sp = speed,
-        ang = angle, towId = towedId, towBy = towedBy
+        ang = angle, towId = towedId, towBy = towedBy,
+        eng = (okEng and eng) and 1 or 0,
+        hdl = (okHdl and hdl) and 1 or 0,
+        stp = (okStp and stp) and 1 or 0,
+        lbm = okLbm and lbm or 0,
+        lbs = okLbs and lbs or 0,
+        alm = (okAlm and alm) and 1 or 0,
     }
     return snapshot
 end

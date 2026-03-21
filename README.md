@@ -8,7 +8,7 @@ Player, zombie, and vehicle position sync with dead reckoning for Project Zomboi
 |--------|------|--------|
 | Players | Position, velocity, direction, movement state (idle/walk/run/sprint/crouch), health | Dead reckoning + error blending |
 | Zombies | Position, velocity, direction, health, crawling state | Dead reckoning + error blending |
-| Vehicles | Position, velocity, angle, speed, tow chains | Dead reckoning + error blending |
+| Vehicles | Position, velocity, angle, speed, tow chains, engine, headlights, brake lights, lightbar, siren, alarm | Dead reckoning + error blending |
 
 ## How it works
 
@@ -103,6 +103,11 @@ All sync follows the same pattern:
 7. Client lerps the game object toward the final predicted position
 
 ## Changelog
+
+### v1.2 - Vehicle State Sync
+- Sync vehicle visual/audio states: engine running, headlights, brake lights, lightbar lights, lightbar siren, alarm
+- States only updated on client when value actually changed (no redundant calls)
+- Lightbar sync only applied to vehicles that have a lightbar (police/emergency)
 
 ### v1.1 - Production Hardening
 - All Java object access wrapped in pcall — mod never crashes the server or client
