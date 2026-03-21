@@ -15,6 +15,7 @@ local trackedZombies = {}       -- [onlineID] = {x,y,z,dir,health,crawling,distS
 local lastImmediateZombie = {}  -- [onlineID] = jsTick
 local zombieHealthCache = {}    -- [onlineID] = lastHealth
 local zombieCrawlCache = {}     -- [onlineID] = lastCrawling
+local lastThreatSync = {}       -- [onlineID] = jsTick of last threat proximity sync
 
 -- Vehicle tracking
 local trackedVehicles = {}      -- [vehicleID] = {x,y,z,speed,angle,towedId,towedBy,jsTick}
@@ -339,6 +340,56 @@ local function sendZombieImmediate(zomb, forceHealth)
 end
 
 ------------------------------------------------------------
+-- Zombie threat proximity sync
+-- Immediately syncs any zombie within melee range of a player
+------------------------------------------------------------
+
+local function checkZombieThreatProximity()
+    if #playerPosCache == 0 then return end
+    local threatDistSq = JaysSync.ZOMBIE_THREAT_DISTANCE_SQ
+    local cooldown = JaysSync.ZOMBIE_THREAT_COOLDOWN
+    local cell = getCell()
+    if not cell then return end
+
+    local ok, zombieList = pcall(function() return cell:getZombieList() end)
+    if not ok or not zombieList then return end
+
+    local batch = {}
+    for i = 0, zombieList:size() - 1 do
+        local zomb = zombieList:get(i)
+        if zomb then
+            local zOk, id = pcall(function() return zomb:getOnlineID() end)
+            if zOk and id then
+                local last = lastThreatSync[id]
+                if not last or (jsTick - last) >= cooldown then
+                    local zx, zy = zomb:getX(), zomb:getY()
+                    if JaysSync.isValidPos(zx) and JaysSync.isValidPos(zy) then
+                        local dSq = nearestPlayerDistSq(zx, zy)
+                        if dSq <= threatDistSq then
+                            lastThreatSync[id] = jsTick
+                            local prev = trackedZombies[id]
+                            local dt = prev and (jsTick - prev.jsTick) or 0
+                            local snapshot = buildZombieSnapshot(zomb, prev, dt)
+                            if snapshot then
+                                batch[#batch + 1] = snapshot
+                                if trackedZombies[id] then
+                                    trackedZombies[id].sentImmediate = jsTick
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #batch > 0 then
+        safeSendChunked(JaysSync.CMD_ZOMBIE_IMMEDIATE, batch)
+        JaysSync.log("Threat proximity sync", #batch, "zombies")
+    end
+end
+
+------------------------------------------------------------
 -- Vehicle sync
 ------------------------------------------------------------
 
@@ -480,6 +531,7 @@ end
 local function purgeAllCaches()
     JaysSync.purgeStaleThrottles(lastImmediatePlayer, jsTick, 600)
     JaysSync.purgeStaleThrottles(lastImmediateZombie, jsTick, 600)
+    JaysSync.purgeStaleThrottles(lastThreatSync, jsTick, 600)
     JaysSync.purgeStaleThrottles(lastImmediateVehicle, jsTick, 600)
 
     -- Purge zombie state caches for zombies no longer tracked
@@ -530,6 +582,7 @@ local function onInitGlobalModData()
     lastImmediateZombie = {}
     zombieHealthCache = {}
     zombieCrawlCache = {}
+    lastThreatSync = {}
     trackedVehicles = {}
     lastImmediateVehicle = {}
     playerPosCache = {}
@@ -543,12 +596,15 @@ end
 local function onTick()
     jsTick = jsTick + 1
 
-    -- Pre-compute player positions when needed by zombie or vehicle broadcast
+    -- Pre-compute player positions (needed by threat proximity every tick, and broadcasts)
     local zombieEnabled = JaysSync.ZOMBIE_SYNC_ENABLED
     local vehicleEnabled = JaysSync.VEHICLE_SYNC_ENABLED
-    local needPos = (zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
-                 or (vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
-    if needPos then refreshPlayerPositions() end
+    refreshPlayerPositions()
+
+    -- Threat proximity: sync zombies within melee range every tick
+    if zombieEnabled then
+        JaysSync.safeCall("threatProximity", checkZombieThreatProximity)
+    end
 
     -- Staggered broadcasts (each wrapped so one failure doesn't block others)
     if jsTick % JaysSync.BROADCAST_INTERVAL == 0 then
