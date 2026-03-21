@@ -1,5 +1,5 @@
 id=JaysSync
-name=Jay's Sync - Player Position Fix
+name=JaysSync
 description=Multiplayer only. Player, zombie, and vehicle position sync with dead reckoning for Build 42 dedicated servers. Fixes crouch desync, frozen players, position drift, ghost zombies, and vehicle rubber-banding. No effect in singleplayer.
 poster=poster.png
 tags=Build 42;Multiplayer
