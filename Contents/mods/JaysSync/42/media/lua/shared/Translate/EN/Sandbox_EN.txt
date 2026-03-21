@@ -10,6 +10,9 @@ Sandbox_EN = {
     JaysSync_SnapDistance_tooltip = "If a player is more than this many squares from their expected position, they teleport instantly instead of interpolating. In plain terms: if you see other players teleporting too often, increase this value. Default: 10.",
 
     -- Zombie Sync
+    JaysSync_ZombieSyncEnabled = "Enable Zombie Sync",
+    JaysSync_ZombieSyncEnabled_tooltip = "Master toggle for zombie position sync. In plain terms: turn this off if you don't need zombie sync or if another mod handles it. 0 = off, 1 = on. Default: 1 (on).",
+
     JaysSync_ZombieSyncDistance = "Zombie Sync Distance (squares)",
     JaysSync_ZombieSyncDistance_tooltip = "Maximum distance from any player to sync a zombie. Zombies outside this range are not tracked. In plain terms: increase if you notice zombies in different spots for different players at long range. Default: 100.",
 
@@ -26,6 +29,12 @@ Sandbox_EN = {
     JaysSync_ZombieSnapDistance_tooltip = "If a zombie is more than this many squares from their expected position, they teleport instantly. In plain terms: increase if zombies are teleporting around too often. Default: 6.",
 
     -- Vehicle Sync
+    JaysSync_VehicleSyncEnabled = "Enable Vehicle Sync",
+    JaysSync_VehicleSyncEnabled_tooltip = "Master toggle for vehicle position sync. In plain terms: turn this off if you don't need vehicle sync or if another mod handles it. 0 = off, 1 = on. Default: 1 (on).",
+
+    JaysSync_VehicleStateSyncEnabled = "Enable Vehicle State Sync",
+    JaysSync_VehicleStateSyncEnabled_tooltip = "Toggle for vehicle visual/audio state sync (headlights, brake lights, siren, alarm, etc). In plain terms: turn this off if another mod like Syncing Vehicle Animations handles vehicle states, or if you only want position sync. 0 = off, 1 = on. Default: 1 (on).",
+
     JaysSync_VehicleSyncDistance = "Vehicle Sync Distance (squares)",
     JaysSync_VehicleSyncDistance_tooltip = "Maximum distance from any player to sync a vehicle. Towed vehicles are always included if the towing vehicle is in range. In plain terms: increase if distant vehicles aren't syncing properly. Default: 140.",
 

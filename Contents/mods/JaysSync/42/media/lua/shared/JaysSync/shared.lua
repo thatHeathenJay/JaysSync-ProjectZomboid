@@ -56,6 +56,13 @@ JaysSync.VEHICLE_PREDICT_DECAY      = 0.95
 JaysSync.VEHICLE_STALE_TICKS        = 180
 
 ------------------------------------------------------------
+-- Feature toggles
+------------------------------------------------------------
+JaysSync.ZOMBIE_SYNC_ENABLED        = true
+JaysSync.VEHICLE_SYNC_ENABLED       = true
+JaysSync.VEHICLE_STATE_SYNC_ENABLED = true
+
+------------------------------------------------------------
 -- Packet chunking
 ------------------------------------------------------------
 JaysSync.BATCH_SIZE = 50  -- max entities per packet to stay under UDP limits

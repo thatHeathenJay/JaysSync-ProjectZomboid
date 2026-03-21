@@ -377,25 +377,27 @@ local function buildVehicleSnapshot(vehicle, prev, dt)
         vy = (y - prev.y) / dt
     end
 
-    -- Vehicle visual/audio state
-    local okEng, eng = pcall(function() return vehicle:isEngineRunning() end)
-    local okHdl, hdl = pcall(function() return vehicle:getHeadlightsOn() end)
-    local okStp, stp = pcall(function() return vehicle:getStoplightsOn() end)
-    local okLbm, lbm = pcall(function() return vehicle:getLightbarLightsMode() end)
-    local okLbs, lbs = pcall(function() return vehicle:getLightbarSirenMode() end)
-    local okAlm, alm = pcall(function() return vehicle:isAlarmed() end)
-
     local snapshot = {
         id = id, x = x, y = y, z = z,
         vx = vx, vy = vy, sp = speed,
         ang = angle, towId = towedId, towBy = towedBy,
-        eng = (okEng and eng) and 1 or 0,
-        hdl = (okHdl and hdl) and 1 or 0,
-        stp = (okStp and stp) and 1 or 0,
-        lbm = okLbm and lbm or 0,
-        lbs = okLbs and lbs or 0,
-        alm = (okAlm and alm) and 1 or 0,
     }
+
+    -- Vehicle visual/audio state (only when enabled)
+    if JaysSync.VEHICLE_STATE_SYNC_ENABLED then
+        local okEng, eng = pcall(function() return vehicle:isEngineRunning() end)
+        local okHdl, hdl = pcall(function() return vehicle:getHeadlightsOn() end)
+        local okStp, stp = pcall(function() return vehicle:getStoplightsOn() end)
+        local okLbm, lbm = pcall(function() return vehicle:getLightbarLightsMode() end)
+        local okLbs, lbs = pcall(function() return vehicle:getLightbarSirenMode() end)
+        local okAlm, alm = pcall(function() return vehicle:isAlarmed() end)
+        snapshot.eng = (okEng and eng) and 1 or 0
+        snapshot.hdl = (okHdl and hdl) and 1 or 0
+        snapshot.stp = (okStp and stp) and 1 or 0
+        snapshot.lbm = okLbm and lbm or 0
+        snapshot.lbs = okLbs and lbs or 0
+        snapshot.alm = (okAlm and alm) and 1 or 0
+    end
     return snapshot
 end
 
@@ -508,6 +510,15 @@ local function onInitGlobalModData()
         JaysSync.VEHICLE_BROADCAST_INTERVAL = sv.VehicleBroadcastInterval or JaysSync.VEHICLE_BROADCAST_INTERVAL
         JaysSync.VEHICLE_INTERP_SPEED      = sv.VehicleInterpSpeed or JaysSync.VEHICLE_INTERP_SPEED
         JaysSync.VEHICLE_SNAP_DISTANCE     = sv.VehicleSnapDistance or JaysSync.VEHICLE_SNAP_DISTANCE
+        if sv.ZombieSyncEnabled ~= nil then
+            JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled == 1
+        end
+        if sv.VehicleSyncEnabled ~= nil then
+            JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled == 1
+        end
+        if sv.VehicleStateSyncEnabled ~= nil then
+            JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled == 1
+        end
         if sv.DebugLogs then
             JaysSync.DEBUG = sv.DebugLogs == 1
         end
@@ -533,18 +544,20 @@ local function onTick()
     jsTick = jsTick + 1
 
     -- Pre-compute player positions when needed by zombie or vehicle broadcast
-    local needPos = (jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
-                 or (jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
+    local zombieEnabled = JaysSync.ZOMBIE_SYNC_ENABLED
+    local vehicleEnabled = JaysSync.VEHICLE_SYNC_ENABLED
+    local needPos = (zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
+                 or (vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
     if needPos then refreshPlayerPositions() end
 
     -- Staggered broadcasts (each wrapped so one failure doesn't block others)
     if jsTick % JaysSync.BROADCAST_INTERVAL == 0 then
         JaysSync.safeCall("broadcastPlayers", broadcastAllPlayers)
     end
-    if jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0 then
+    if zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0 then
         JaysSync.safeCall("broadcastZombies", broadcastZombies)
     end
-    if jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0 then
+    if vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0 then
         JaysSync.safeCall("broadcastVehicles", broadcastVehicles)
     end
 
@@ -575,11 +588,13 @@ end
 
 -- Zombie: combat hit
 local function onHitZombie(zomb)
+    if not JaysSync.ZOMBIE_SYNC_ENABLED then return end
     JaysSync.safeCall("onHitZombie", sendZombieImmediate, zomb)
 end
 
 -- Zombie: death (bypass throttle, force health=0)
 local function onZombieDead(zomb)
+    if not JaysSync.ZOMBIE_SYNC_ENABLED then return end
     if not zomb then return end
     JaysSync.safeCall("onZombieDead", function()
         sendZombieImmediate(zomb, 0)
@@ -595,6 +610,7 @@ end
 
 -- Zombie: health or crawl state change
 local function onZombieUpdate(zomb)
+    if not JaysSync.ZOMBIE_SYNC_ENABLED then return end
     if not zomb then return end
     JaysSync.safeCall("onZombieUpdate", function()
         local ok, id = pcall(function() return zomb:getOnlineID() end)
@@ -618,6 +634,7 @@ end
 
 -- Zombie: AI state change (idle->attack, etc.)
 local function onAIStateChange(character)
+    if not JaysSync.ZOMBIE_SYNC_ENABLED then return end
     if not character then return end
     JaysSync.safeCall("onAIStateChange", function()
         if instanceof(character, "IsoZombie") then

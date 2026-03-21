@@ -393,7 +393,8 @@ local function onServerCommand(module, command, args)
         end
         JaysSync.log("Received", command, "#", #args)
 
-    elseif command == JaysSync.CMD_ZOMBIE_STATES or command == JaysSync.CMD_ZOMBIE_IMMEDIATE then
+    elseif (command == JaysSync.CMD_ZOMBIE_STATES or command == JaysSync.CMD_ZOMBIE_IMMEDIATE)
+           and JaysSync.ZOMBIE_SYNC_ENABLED then
         local snapDistSq = zombieConfig.snapDist * zombieConfig.snapDist
         for _, data in ipairs(args) do
             if data and data.id then
@@ -402,7 +403,8 @@ local function onServerCommand(module, command, args)
         end
         JaysSync.log("Received", command, "#", #args)
 
-    elseif command == JaysSync.CMD_VEHICLE_STATES or command == JaysSync.CMD_VEHICLE_IMMEDIATE then
+    elseif (command == JaysSync.CMD_VEHICLE_STATES or command == JaysSync.CMD_VEHICLE_IMMEDIATE)
+           and JaysSync.VEHICLE_SYNC_ENABLED then
         local snapDistSq = vehicleConfig.snapDist * vehicleConfig.snapDist
         for _, data in ipairs(args) do
             if data and data.id then
@@ -426,6 +428,9 @@ local function onInitGlobalModData()
         if sv.ZombieSnapDistance then JaysSync.ZOMBIE_SNAP_DISTANCE = sv.ZombieSnapDistance end
         if sv.VehicleInterpSpeed then JaysSync.VEHICLE_INTERP_SPEED = sv.VehicleInterpSpeed end
         if sv.VehicleSnapDistance then JaysSync.VEHICLE_SNAP_DISTANCE = sv.VehicleSnapDistance end
+        if sv.ZombieSyncEnabled ~= nil then JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled == 1 end
+        if sv.VehicleSyncEnabled ~= nil then JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled == 1 end
+        if sv.VehicleStateSyncEnabled ~= nil then JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled == 1 end
         if sv.DebugLogs then JaysSync.DEBUG = sv.DebugLogs == 1 end
     end
 

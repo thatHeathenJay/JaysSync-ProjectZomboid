@@ -104,6 +104,13 @@ All sync follows the same pattern:
 
 ## Changelog
 
+### v1.3 - Feature Toggles
+- Added Enable Zombie Sync toggle (on/off, default: on)
+- Added Enable Vehicle Sync toggle (on/off, default: on)
+- Added Enable Vehicle State Sync toggle (on/off, default: on)
+- Server skips all broadcasts and events for disabled features (zero overhead when off)
+- Client ignores packets for disabled features
+
 ### v1.2 - Vehicle State Sync
 - Sync vehicle visual/audio states: engine running, headlights, brake lights, lightbar lights, lightbar siren, alarm
 - States only updated on client when value actually changed (no redundant calls)

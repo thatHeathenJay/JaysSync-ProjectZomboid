@@ -32,6 +32,16 @@ option JaysSync.SnapDistance
 }
 
 -- Zombie Sync
+option JaysSync.ZombieSyncEnabled
+{
+    type = integer,
+    default = 1,
+    min = 0,
+    max = 1,
+    page = JaysSync,
+    translation = JaysSync_ZombieSyncEnabled,
+}
+
 option JaysSync.ZombieSyncDistance
 {
     type = integer,
@@ -83,6 +93,26 @@ option JaysSync.ZombieSnapDistance
 }
 
 -- Vehicle Sync
+option JaysSync.VehicleSyncEnabled
+{
+    type = integer,
+    default = 1,
+    min = 0,
+    max = 1,
+    page = JaysSync,
+    translation = JaysSync_VehicleSyncEnabled,
+}
+
+option JaysSync.VehicleStateSyncEnabled
+{
+    type = integer,
+    default = 1,
+    min = 0,
+    max = 1,
+    page = JaysSync,
+    translation = JaysSync_VehicleStateSyncEnabled,
+}
+
 option JaysSync.VehicleSyncDistance
 {
     type = integer,
