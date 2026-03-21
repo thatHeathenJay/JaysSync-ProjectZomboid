@@ -1,5 +1,7 @@
 # Jay's Sync - Position Fix
 
+**Multiplayer only.** This mod is designed for dedicated servers and has no effect in singleplayer. Both the server and all connecting clients need it installed.
+
 Player, zombie, and vehicle position sync with dead reckoning for Project Zomboid Build 42 dedicated servers. Fixes crouch desync, frozen players, position drift, ghost zombies, and vehicle rubber-banding.
 
 ## What it syncs
