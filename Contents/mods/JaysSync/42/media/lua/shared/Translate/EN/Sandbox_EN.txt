@@ -1,0 +1,44 @@
+Sandbox_EN = {
+    -- Player Sync
+    JaysSync_BroadcastInterval = "Player Broadcast Interval (ticks)",
+    JaysSync_BroadcastInterval_tooltip = "How often the server sends player position updates to all clients. Lower = smoother but more bandwidth. Default: 20 ticks (~660ms).",
+
+    JaysSync_InterpSpeed = "Player Interpolation Speed",
+    JaysSync_InterpSpeed_tooltip = "How fast clients blend toward the target player position each tick. Higher = snappier but can look jerky. Default: 0.35.",
+
+    JaysSync_SnapDistance = "Player Snap Distance",
+    JaysSync_SnapDistance_tooltip = "If a player is this many squares away from their expected position, snap them instantly instead of interpolating. Default: 10.",
+
+    -- Zombie Sync
+    JaysSync_ZombieSyncDistance = "Zombie Sync Distance (squares)",
+    JaysSync_ZombieSyncDistance_tooltip = "Maximum distance from any player to sync a zombie. Zombies outside this range are not tracked. Default: 100.",
+
+    JaysSync_ZombieBroadcastInterval = "Zombie Broadcast Interval (ticks)",
+    JaysSync_ZombieBroadcastInterval_tooltip = "How often the server sends zombie position updates. Lower = smoother zombie movement but more bandwidth. Default: 30 ticks (~1s).",
+
+    JaysSync_MaxTrackedZombies = "Max Tracked Zombies",
+    JaysSync_MaxTrackedZombies_tooltip = "Maximum number of zombies to sync at once. Closest zombies are prioritized. Higher values use more bandwidth. Default: 150.",
+
+    JaysSync_ZombieInterpSpeed = "Zombie Interpolation Speed",
+    JaysSync_ZombieInterpSpeed_tooltip = "How fast clients blend toward the target zombie position each tick. Default: 0.40.",
+
+    JaysSync_ZombieSnapDistance = "Zombie Snap Distance",
+    JaysSync_ZombieSnapDistance_tooltip = "If a zombie is this many squares away from their expected position, snap them instantly. Default: 6.",
+
+    -- Vehicle Sync
+    JaysSync_VehicleSyncDistance = "Vehicle Sync Distance (squares)",
+    JaysSync_VehicleSyncDistance_tooltip = "Maximum distance from any player to sync a vehicle. Towed vehicles are always included if the towing vehicle is in range. Default: 140.",
+
+    JaysSync_VehicleBroadcastInterval = "Vehicle Broadcast Interval (ticks)",
+    JaysSync_VehicleBroadcastInterval_tooltip = "How often the server sends vehicle position updates. Default: 25 ticks (~830ms).",
+
+    JaysSync_VehicleInterpSpeed = "Vehicle Interpolation Speed",
+    JaysSync_VehicleInterpSpeed_tooltip = "How fast clients blend toward the target vehicle position each tick. Default: 0.50.",
+
+    JaysSync_VehicleSnapDistance = "Vehicle Snap Distance",
+    JaysSync_VehicleSnapDistance_tooltip = "If a vehicle is this many squares away from their expected position, snap them instantly. Default: 8.",
+
+    -- Debug
+    JaysSync_DebugLogs = "Debug Logging",
+    JaysSync_DebugLogs_tooltip = "Enable detailed console logging for troubleshooting. 0 = off, 1 = on. Default: 0.",
+}

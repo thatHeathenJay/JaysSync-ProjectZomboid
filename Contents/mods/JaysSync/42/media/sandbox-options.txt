@@ -1,0 +1,135 @@
+VERSION = 1,
+
+-- Player Sync
+option JaysSync.BroadcastInterval
+{
+    type = integer,
+    default = 20,
+    min = 5,
+    max = 120,
+    page = JaysSync,
+    translation = JaysSync_BroadcastInterval,
+}
+
+option JaysSync.InterpSpeed
+{
+    type = double,
+    default = 0.35,
+    min = 0.05,
+    max = 1.0,
+    page = JaysSync,
+    translation = JaysSync_InterpSpeed,
+}
+
+option JaysSync.SnapDistance
+{
+    type = double,
+    default = 10.0,
+    min = 2.0,
+    max = 50.0,
+    page = JaysSync,
+    translation = JaysSync_SnapDistance,
+}
+
+-- Zombie Sync
+option JaysSync.ZombieSyncDistance
+{
+    type = integer,
+    default = 100,
+    min = 20,
+    max = 300,
+    page = JaysSync,
+    translation = JaysSync_ZombieSyncDistance,
+}
+
+option JaysSync.ZombieBroadcastInterval
+{
+    type = integer,
+    default = 30,
+    min = 10,
+    max = 120,
+    page = JaysSync,
+    translation = JaysSync_ZombieBroadcastInterval,
+}
+
+option JaysSync.MaxTrackedZombies
+{
+    type = integer,
+    default = 150,
+    min = 20,
+    max = 500,
+    page = JaysSync,
+    translation = JaysSync_MaxTrackedZombies,
+}
+
+option JaysSync.ZombieInterpSpeed
+{
+    type = double,
+    default = 0.40,
+    min = 0.05,
+    max = 1.0,
+    page = JaysSync,
+    translation = JaysSync_ZombieInterpSpeed,
+}
+
+option JaysSync.ZombieSnapDistance
+{
+    type = double,
+    default = 6.0,
+    min = 2.0,
+    max = 50.0,
+    page = JaysSync,
+    translation = JaysSync_ZombieSnapDistance,
+}
+
+-- Vehicle Sync
+option JaysSync.VehicleSyncDistance
+{
+    type = integer,
+    default = 140,
+    min = 30,
+    max = 400,
+    page = JaysSync,
+    translation = JaysSync_VehicleSyncDistance,
+}
+
+option JaysSync.VehicleBroadcastInterval
+{
+    type = integer,
+    default = 25,
+    min = 10,
+    max = 120,
+    page = JaysSync,
+    translation = JaysSync_VehicleBroadcastInterval,
+}
+
+option JaysSync.VehicleInterpSpeed
+{
+    type = double,
+    default = 0.50,
+    min = 0.05,
+    max = 1.0,
+    page = JaysSync,
+    translation = JaysSync_VehicleInterpSpeed,
+}
+
+option JaysSync.VehicleSnapDistance
+{
+    type = double,
+    default = 8.0,
+    min = 2.0,
+    max = 50.0,
+    page = JaysSync,
+    translation = JaysSync_VehicleSnapDistance,
+}
+
+-- Debug
+option JaysSync.DebugLogs
+{
+    type = integer,
+    default = 0,
+    min = 0,
+    max = 1,
+    page = JaysSync,
+    translation = JaysSync_DebugLogs,
+}
