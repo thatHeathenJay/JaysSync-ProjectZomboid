@@ -511,16 +511,16 @@ local function onInitGlobalModData()
         JaysSync.VEHICLE_INTERP_SPEED      = sv.VehicleInterpSpeed or JaysSync.VEHICLE_INTERP_SPEED
         JaysSync.VEHICLE_SNAP_DISTANCE     = sv.VehicleSnapDistance or JaysSync.VEHICLE_SNAP_DISTANCE
         if sv.ZombieSyncEnabled ~= nil then
-            JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled == 1
+            JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled
         end
         if sv.VehicleSyncEnabled ~= nil then
-            JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled == 1
+            JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled
         end
         if sv.VehicleStateSyncEnabled ~= nil then
-            JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled == 1
+            JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled
         end
-        if sv.DebugLogs then
-            JaysSync.DEBUG = sv.DebugLogs == 1
+        if sv.DebugLogs ~= nil then
+            JaysSync.DEBUG = sv.DebugLogs
         end
     end
 

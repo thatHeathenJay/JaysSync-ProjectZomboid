@@ -440,10 +440,10 @@ local function onInitGlobalModData()
         if sv.ZombieSnapDistance then JaysSync.ZOMBIE_SNAP_DISTANCE = sv.ZombieSnapDistance end
         if sv.VehicleInterpSpeed then JaysSync.VEHICLE_INTERP_SPEED = sv.VehicleInterpSpeed end
         if sv.VehicleSnapDistance then JaysSync.VEHICLE_SNAP_DISTANCE = sv.VehicleSnapDistance end
-        if sv.ZombieSyncEnabled ~= nil then JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled == 1 end
-        if sv.VehicleSyncEnabled ~= nil then JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled == 1 end
-        if sv.VehicleStateSyncEnabled ~= nil then JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled == 1 end
-        if sv.DebugLogs then JaysSync.DEBUG = sv.DebugLogs == 1 end
+        if sv.ZombieSyncEnabled ~= nil then JaysSync.ZOMBIE_SYNC_ENABLED = sv.ZombieSyncEnabled end
+        if sv.VehicleSyncEnabled ~= nil then JaysSync.VEHICLE_SYNC_ENABLED = sv.VehicleSyncEnabled end
+        if sv.VehicleStateSyncEnabled ~= nil then JaysSync.VEHICLE_STATE_SYNC_ENABLED = sv.VehicleStateSyncEnabled end
+        if sv.DebugLogs ~= nil then JaysSync.DEBUG = sv.DebugLogs end
     end
 
     -- Rebuild config tables from (possibly updated) constants

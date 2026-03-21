@@ -1,7 +1,7 @@
 JaysSync                            = JaysSync or {}
 
 JaysSync.MOD_ID                     = "JaysSync"
-JaysSync.DEBUG                      = true
+JaysSync.DEBUG                      = false
 
 ------------------------------------------------------------
 -- Network commands (2-char for compact packets)
@@ -16,13 +16,13 @@ JaysSync.CMD_VEHICLE_IMMEDIATE      = "vi"
 ------------------------------------------------------------
 -- Player sync config
 ------------------------------------------------------------
-JaysSync.BROADCAST_INTERVAL         = 20 -- ticks between full player broadcasts
-JaysSync.IMMEDIATE_COOLDOWN         = 4 -- min ticks between immediate syncs per player
+JaysSync.BROADCAST_INTERVAL         = 20   -- ticks between full player broadcasts
+JaysSync.IMMEDIATE_COOLDOWN         = 4    -- min ticks between immediate syncs per player
 JaysSync.MIN_MOVE_DELTA_SQ          = 0.25 -- 0.5^2
 JaysSync.INTERP_SPEED               = 0.35 -- client lerp factor (0-1)
 JaysSync.SNAP_DISTANCE              = 10.0 -- teleport threshold (squares)
 JaysSync.PREDICT_DECAY              = 0.92 -- velocity decay per tick
-JaysSync.STALE_TICKS                = 120 -- drop after N ticks without update
+JaysSync.STALE_TICKS                = 120  -- drop after N ticks without update
 JaysSync.CORRECTION_BLEND           = 0.25 -- error blend-out rate
 
 -- Movement states
@@ -36,7 +36,7 @@ JaysSync.STATE_PRONE                = 5
 ------------------------------------------------------------
 -- Zombie sync config
 ------------------------------------------------------------
-JaysSync.ZOMBIE_BROADCAST_INTERVAL  = 30 -- ticks between zombie broadcasts
+JaysSync.ZOMBIE_BROADCAST_INTERVAL  = 30  -- ticks between zombie broadcasts
 JaysSync.ZOMBIE_SYNC_DISTANCE       = 100 -- squares
 JaysSync.MAX_TRACKED_ZOMBIES        = 150 -- hard cap
 JaysSync.ZOMBIE_IMMEDIATE_COOLDOWN  = 3
@@ -113,14 +113,14 @@ function JaysSync.isValidSnapshot(data)
 end
 
 -- Safe pcall wrapper that logs errors instead of crashing.
--- Returns true + results on success, false on error.
+-- Returns ok, result1, result2 on success, false on error.
 function JaysSync.safeCall(context, fn, ...)
-    local results = { pcall(fn, ...) }
-    if not results[1] then
-        JaysSync.warn(context, "error:", tostring(results[2]))
+    local ok, r1, r2, r3 = pcall(fn, ...)
+    if not ok then
+        JaysSync.warn(context, "error:", tostring(r1))
         return false
     end
-    return unpack(results)
+    return ok, r1, r2, r3
 end
 
 -- Generic throttle check. Returns true if should throttle (too soon).

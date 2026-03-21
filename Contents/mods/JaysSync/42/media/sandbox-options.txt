@@ -34,10 +34,8 @@ option JaysSync.SnapDistance
 -- Zombie Sync
 option JaysSync.ZombieSyncEnabled
 {
-    type = integer,
-    default = 1,
-    min = 0,
-    max = 1,
+    type = boolean,
+    default = true,
     page = JaysSync,
     translation = JaysSync_ZombieSyncEnabled,
 }
@@ -95,20 +93,16 @@ option JaysSync.ZombieSnapDistance
 -- Vehicle Sync
 option JaysSync.VehicleSyncEnabled
 {
-    type = integer,
-    default = 1,
-    min = 0,
-    max = 1,
+    type = boolean,
+    default = true,
     page = JaysSync,
     translation = JaysSync_VehicleSyncEnabled,
 }
 
 option JaysSync.VehicleStateSyncEnabled
 {
-    type = integer,
-    default = 1,
-    min = 0,
-    max = 1,
+    type = boolean,
+    default = true,
     page = JaysSync,
     translation = JaysSync_VehicleStateSyncEnabled,
 }
@@ -156,10 +150,8 @@ option JaysSync.VehicleSnapDistance
 -- Debug
 option JaysSync.DebugLogs
 {
-    type = integer,
-    default = 0,
-    min = 0,
-    max = 1,
+    type = boolean,
+    default = false,
     page = JaysSync,
     translation = JaysSync_DebugLogs,
 }
