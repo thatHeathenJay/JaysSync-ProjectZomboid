@@ -1,44 +1,44 @@
 Sandbox_EN = {
     -- Player Sync
     JaysSync_BroadcastInterval = "Player Broadcast Interval (ticks)",
-    JaysSync_BroadcastInterval_tooltip = "How often the server sends player position updates to all clients. Lower = smoother but more bandwidth. Default: 20 ticks (~660ms).",
+    JaysSync_BroadcastInterval_tooltip = "How often the server sends player position updates to all clients. In plain terms: lower numbers mean other players move more smoothly on your screen, but use more bandwidth. Default: 20 ticks (~660ms). Try 10-15 for small private servers.",
 
     JaysSync_InterpSpeed = "Player Interpolation Speed",
-    JaysSync_InterpSpeed_tooltip = "How fast clients blend toward the target player position each tick. Higher = snappier but can look jerky. Default: 0.35.",
+    JaysSync_InterpSpeed_tooltip = "The lerp factor used to blend players toward their target position each tick (0-1). In plain terms: higher values make other players look snappier but can appear choppy. Lower values are smoother but can feel sluggish. Default: 0.35.",
 
-    JaysSync_SnapDistance = "Player Snap Distance",
-    JaysSync_SnapDistance_tooltip = "If a player is this many squares away from their expected position, snap them instantly instead of interpolating. Default: 10.",
+    JaysSync_SnapDistance = "Player Snap/Teleport Distance",
+    JaysSync_SnapDistance_tooltip = "If a player is more than this many squares from their expected position, they teleport instantly instead of interpolating. In plain terms: if you see other players teleporting too often, increase this value. Default: 10.",
 
     -- Zombie Sync
     JaysSync_ZombieSyncDistance = "Zombie Sync Distance (squares)",
-    JaysSync_ZombieSyncDistance_tooltip = "Maximum distance from any player to sync a zombie. Zombies outside this range are not tracked. Default: 100.",
+    JaysSync_ZombieSyncDistance_tooltip = "Maximum distance from any player to sync a zombie. Zombies outside this range are not tracked. In plain terms: increase if you notice zombies in different spots for different players at long range. Default: 100.",
 
     JaysSync_ZombieBroadcastInterval = "Zombie Broadcast Interval (ticks)",
-    JaysSync_ZombieBroadcastInterval_tooltip = "How often the server sends zombie position updates. Lower = smoother zombie movement but more bandwidth. Default: 30 ticks (~1s).",
+    JaysSync_ZombieBroadcastInterval_tooltip = "How often the server sends zombie position updates. In plain terms: lower numbers mean zombies move more smoothly for all players but use more bandwidth. Default: 30 ticks (~1s).",
 
     JaysSync_MaxTrackedZombies = "Max Tracked Zombies",
-    JaysSync_MaxTrackedZombies_tooltip = "Maximum number of zombies to sync at once. Closest zombies are prioritized. Higher values use more bandwidth. Default: 150.",
+    JaysSync_MaxTrackedZombies_tooltip = "Hard cap on the number of zombies synced at once. Closest zombies to players are prioritized. In plain terms: raise this if you have large hordes and want them all synced. Lower it if your server is struggling with lag. Default: 150.",
 
     JaysSync_ZombieInterpSpeed = "Zombie Interpolation Speed",
-    JaysSync_ZombieInterpSpeed_tooltip = "How fast clients blend toward the target zombie position each tick. Default: 0.40.",
+    JaysSync_ZombieInterpSpeed_tooltip = "The lerp factor for blending zombies toward their target position (0-1). In plain terms: higher = snappier zombie movement, lower = smoother but can lag behind. Default: 0.40.",
 
-    JaysSync_ZombieSnapDistance = "Zombie Snap Distance",
-    JaysSync_ZombieSnapDistance_tooltip = "If a zombie is this many squares away from their expected position, snap them instantly. Default: 6.",
+    JaysSync_ZombieSnapDistance = "Zombie Snap/Teleport Distance",
+    JaysSync_ZombieSnapDistance_tooltip = "If a zombie is more than this many squares from their expected position, they teleport instantly. In plain terms: increase if zombies are teleporting around too often. Default: 6.",
 
     -- Vehicle Sync
     JaysSync_VehicleSyncDistance = "Vehicle Sync Distance (squares)",
-    JaysSync_VehicleSyncDistance_tooltip = "Maximum distance from any player to sync a vehicle. Towed vehicles are always included if the towing vehicle is in range. Default: 140.",
+    JaysSync_VehicleSyncDistance_tooltip = "Maximum distance from any player to sync a vehicle. Towed vehicles are always included if the towing vehicle is in range. In plain terms: increase if distant vehicles aren't syncing properly. Default: 140.",
 
     JaysSync_VehicleBroadcastInterval = "Vehicle Broadcast Interval (ticks)",
-    JaysSync_VehicleBroadcastInterval_tooltip = "How often the server sends vehicle position updates. Default: 25 ticks (~830ms).",
+    JaysSync_VehicleBroadcastInterval_tooltip = "How often the server sends vehicle position updates. In plain terms: lower numbers mean vehicles driven by other players look smoother but use more bandwidth. Default: 25 ticks (~830ms).",
 
     JaysSync_VehicleInterpSpeed = "Vehicle Interpolation Speed",
-    JaysSync_VehicleInterpSpeed_tooltip = "How fast clients blend toward the target vehicle position each tick. Default: 0.50.",
+    JaysSync_VehicleInterpSpeed_tooltip = "The lerp factor for blending vehicles toward their target position (0-1). In plain terms: vehicles move fast so they generally need a higher value than players or zombies. Default: 0.50.",
 
-    JaysSync_VehicleSnapDistance = "Vehicle Snap Distance",
-    JaysSync_VehicleSnapDistance_tooltip = "If a vehicle is this many squares away from their expected position, snap them instantly. Default: 8.",
+    JaysSync_VehicleSnapDistance = "Vehicle Snap/Teleport Distance",
+    JaysSync_VehicleSnapDistance_tooltip = "If a vehicle is more than this many squares from their expected position, it teleports instantly. In plain terms: increase if vehicles are rubber-banding or jumping around. Default: 8.",
 
     -- Debug
     JaysSync_DebugLogs = "Debug Logging",
-    JaysSync_DebugLogs_tooltip = "Enable detailed console logging for troubleshooting. 0 = off, 1 = on. Default: 0.",
+    JaysSync_DebugLogs_tooltip = "Prints detailed sync data to the server console. In plain terms: only turn this on if you're troubleshooting a problem. It will spam your console. 0 = off, 1 = on. Default: 0.",
 }
