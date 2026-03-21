@@ -1,7 +1,15 @@
 version=1
 title=JaysSync
+description=<-- WIP -->
+description=
+description=This is a work in progress and is not ready for full release. It is currently being tested on a small dedicated server for 4 people. Updates will continue for as long as I am playing the game.
+description=
 description=Multiplayer only. Player, zombie, and vehicle position sync with dead reckoning for Build 42 dedicated servers.
+description=
 description=Fixes crouch desync, frozen players, position drift, ghost zombies, and vehicle rubber-banding.
+description=
 description=No effect in singleplayer.
+description=
+description=For more detailed information, see the github repository in the discussions thread.
 tags=Build 42;Multiplayer
 visibility=3

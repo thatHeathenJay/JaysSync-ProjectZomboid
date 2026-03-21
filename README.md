@@ -106,6 +106,14 @@ All sync follows the same pattern:
 
 ## Changelog
 
+### v1.4 - Combat Awareness
+- Threat proximity sync: zombies within 3 tiles of any player get immediate position updates every 2 ticks
+- Combat exclusion: client stops overriding nearby zombie positions while the local player is attacking (prevents fighting PZ's combat system)
+- Threat sync skips broadcast ticks to avoid packet bursts
+- Capped threat syncs at 20 per tick to prevent UDP flooding during hordes
+- Sandbox options now use proper boolean type for toggles
+- Fixed sandbox-options.txt comment syntax crash (PZ parser doesn't support `--` comments)
+
 ### v1.3 - Feature Toggles
 - Added Enable Zombie Sync toggle (on/off, default: on)
 - Added Enable Vehicle Sync toggle (on/off, default: on)
