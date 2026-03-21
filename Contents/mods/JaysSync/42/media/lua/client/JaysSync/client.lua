@@ -39,11 +39,24 @@ local zombieById  = {}
 local vehicleById = {}
 
 ------------------------------------------------------------
+-- Snapshot field whitelists (only these fields are copied from network data)
+------------------------------------------------------------
+
+local playerFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "ms", "hp" }
+local zombieFields  = { "id", "x", "y", "z", "vx", "vy", "dir", "hp", "cr" }
+local vehicleFields = { "id", "x", "y", "z", "vx", "vy", "sp", "ang", "towId", "towBy" }
+
+------------------------------------------------------------
 -- Generic dead reckoning functions
 ------------------------------------------------------------
 
--- Process a received snapshot into a remote state table
-local function processSnapshot(remoteTable, id, data, snapDistSq)
+-- Process a received snapshot into a remote state table (whitelist copy)
+local function processSnapshot(remoteTable, id, data, snapDistSq, fields)
+    if not JaysSync.isValidSnapshot(data) then
+        JaysSync.warn("Dropped invalid snapshot for entity", id)
+        return
+    end
+
     local existing = remoteTable[id]
     if existing then
         local errorX = (existing.predX or existing.x) - data.x
@@ -52,7 +65,7 @@ local function processSnapshot(remoteTable, id, data, snapDistSq)
         if errorDistSq > snapDistSq then
             errorX, errorY = 0, 0
         end
-        for k, v in pairs(data) do existing[k] = v end
+        for i = 1, #fields do existing[fields[i]] = data[fields[i]] end
         existing.receivedTick = clientTick
         existing.predX = data.x
         existing.predY = data.y
@@ -60,7 +73,7 @@ local function processSnapshot(remoteTable, id, data, snapDistSq)
         existing.errorY = errorY
     else
         local entry = {}
-        for k, v in pairs(data) do entry[k] = v end
+        for i = 1, #fields do entry[fields[i]] = data[fields[i]] end
         entry.receivedTick = clientTick
         entry.predX = data.x
         entry.predY = data.y
@@ -84,37 +97,51 @@ local function advanceDeadReckoning(state, config, age)
     state.errorX = (state.errorX or 0) * (1 - config.correctionBlend)
     state.errorY = (state.errorY or 0) * (1 - config.correctionBlend)
 
-    return state.predX + state.errorX, state.predY + state.errorY, false
+    local fx = state.predX + state.errorX
+    local fy = state.predY + state.errorY
+
+    -- Bounds check the final predicted position
+    if not JaysSync.isValidPos(fx) or not JaysSync.isValidPos(fy) then
+        return state.x, state.y, false  -- fall back to last known good position
+    end
+
+    return fx, fy, false
 end
 
 -- Lerp an entity toward a target position. Returns true if teleported.
 local function lerpPosition(obj, finalX, finalY, finalZ, config)
-    local cx, cy = obj:getX(), obj:getY()
+    local ok, cx, cy = pcall(function() return obj:getX(), obj:getY() end)
+    if not ok then return false end
+
     local dx, dy = finalX - cx, finalY - cy
     local distSq = dx * dx + dy * dy
     local snapDistSq = config.snapDist * config.snapDist
 
     if distSq > snapDistSq then
-        obj:setX(finalX)
-        obj:setY(finalY)
-        obj:setZ(finalZ)
+        pcall(function()
+            obj:setX(finalX)
+            obj:setY(finalY)
+            obj:setZ(finalZ)
+        end)
         return true
     elseif distSq > 0.0001 then
         local t = config.interpSpeed
-        obj:setX(cx + dx * t)
-        obj:setY(cy + dy * t)
-        obj:setZ(finalZ)
+        pcall(function()
+            obj:setX(cx + dx * t)
+            obj:setY(cy + dy * t)
+            obj:setZ(finalZ)
+        end)
     end
     return false
 end
 
 ------------------------------------------------------------
--- Entity-specific apply functions
+-- Entity-specific apply functions (all pcall-wrapped)
 ------------------------------------------------------------
 
 local function applyMovementState(player, moveState)
     if player.setSneaking then
-        player:setSneaking(moveState == JaysSync.STATE_CROUCH)
+        pcall(function() player:setSneaking(moveState == JaysSync.STATE_CROUCH) end)
     end
 end
 
@@ -122,14 +149,18 @@ local function applyToPlayer(player, state, finalX, finalY, config)
     lerpPosition(player, finalX, finalY, state.z, config)
 
     if state.dir then
-        player:setDirectionAngle(JaysSync.lerpAngle(player:getDirectionAngle(), state.dir, config.interpSpeed))
+        pcall(function()
+            player:setDirectionAngle(JaysSync.lerpAngle(player:getDirectionAngle(), state.dir, config.interpSpeed))
+        end)
     end
 
     applyMovementState(player, state.ms)
 
     local age = clientTick - state.receivedTick
     if state.hp and age < 10 then
-        player:getBodyDamage():setOverallBodyHealth(state.hp)
+        pcall(function()
+            player:getBodyDamage():setOverallBodyHealth(state.hp)
+        end)
     end
 end
 
@@ -137,19 +168,28 @@ local function applyToZombie(zomb, state, finalX, finalY, config)
     lerpPosition(zomb, finalX, finalY, state.z, config)
 
     if state.dir then
-        zomb:setDirectionAngle(JaysSync.lerpAngle(zomb:getDirectionAngle(), state.dir, config.interpSpeed))
+        pcall(function()
+            zomb:setDirectionAngle(JaysSync.lerpAngle(zomb:getDirectionAngle(), state.dir, config.interpSpeed))
+        end)
     end
 
+    -- Only set health if it actually changed
     if state.hp ~= nil then
-        zomb:setHealth(state.hp)
+        local okH, currentHp = pcall(function() return zomb:getHealth() end)
+        if okH and currentHp ~= state.hp then
+            pcall(function() zomb:setHealth(state.hp) end)
+        end
     end
 
     if state.cr ~= nil then
-        zomb:setCrawling(state.cr == 1)
+        local okC, currentCr = pcall(function() return zomb:isCrawling() end)
+        if okC and (currentCr ~= (state.cr == 1)) then
+            pcall(function() zomb:setCrawling(state.cr == 1) end)
+        end
     end
 
     if state.hp and state.hp <= 0 then
-        zomb:setDead(true)
+        pcall(function() zomb:setDead(true) end)
         return true  -- signal removal
     end
     return false
@@ -167,28 +207,49 @@ local function applyToVehicle(vehicle, state, finalX, finalY, config)
 end
 
 ------------------------------------------------------------
+-- Driver/passenger exclusion helper
+------------------------------------------------------------
+
+local function getLocalVehicleID()
+    local localPlayer = getPlayer()
+    if not localPlayer then return nil end
+    local ok, vehicle = pcall(function() return localPlayer:getVehicle() end)
+    if ok and vehicle then
+        local okId, vid = pcall(function() return vehicle:getID() end)
+        if okId then return vid end
+    end
+    return nil
+end
+
+------------------------------------------------------------
 -- Lookup cache rebuild (once per tick, only when needed)
 ------------------------------------------------------------
 
 local function rebuildLookupCaches()
     zombieById = {}
     vehicleById = {}
-    local cell = getCell()
-    if not cell then return end
+    local ok, cell = pcall(getCell)
+    if not ok or not cell then return end
 
-    local zl = cell:getZombieList()
-    if zl then
+    local okZl, zl = pcall(function() return cell:getZombieList() end)
+    if okZl and zl then
         for i = 0, zl:size() - 1 do
             local z = zl:get(i)
-            if z then zombieById[z:getOnlineID()] = z end
+            if z then
+                local okId, zid = pcall(function() return z:getOnlineID() end)
+                if okId and zid then zombieById[zid] = z end
+            end
         end
     end
 
-    local vl = cell:getVehicles()
-    if vl then
+    local okVl, vl = pcall(function() return cell:getVehicles() end)
+    if okVl and vl then
         for i = 0, vl:size() - 1 do
             local v = vl:get(i)
-            if v then vehicleById[v:getID()] = v end
+            if v then
+                local okId, vid = pcall(function() return v:getID() end)
+                if okId and vid then vehicleById[vid] = v end
+            end
         end
     end
 end
@@ -202,7 +263,8 @@ local function onClientTick()
 
     local localPlayer = getPlayer()
     if not localPlayer then return end
-    local localID = localPlayer:getOnlineID()
+    local okId, localID = pcall(function() return localPlayer:getOnlineID() end)
+    if not okId then return end
 
     -- Rebuild lookup caches only when we have remote zombies or vehicles
     local hasZombies = next(remoteZombies) ~= nil
@@ -211,14 +273,17 @@ local function onClientTick()
         rebuildLookupCaches()
     end
 
+    -- Get local player's vehicle ID for driver exclusion
+    local localVehicleID = hasVehicles and getLocalVehicleID() or nil
+
     -- Players
     local toRemove = {}
     for id, state in pairs(remotePlayers) do
         if id == localID then
             toRemove[#toRemove + 1] = id
         else
-            local player = getPlayerByOnlineID(id)
-            if not player then
+            local okP, player = pcall(getPlayerByOnlineID, id)
+            if not okP or not player then
                 toRemove[#toRemove + 1] = id
             else
                 local age = clientTick - state.receivedTick
@@ -226,7 +291,7 @@ local function onClientTick()
                 if stale then
                     toRemove[#toRemove + 1] = id
                 else
-                    applyToPlayer(player, state, fx, fy, playerConfig)
+                    JaysSync.safeCall("applyToPlayer", applyToPlayer, player, state, fx, fy, playerConfig)
                 end
             end
         end
@@ -243,31 +308,41 @@ local function onClientTick()
                 toRemove[#toRemove + 1] = id
             else
                 local zomb = zombieById[id]
-                if not zomb or zomb:isDead() then
+                if not zomb then
                     toRemove[#toRemove + 1] = id
                 else
-                    local dead = applyToZombie(zomb, state, fx, fy, zombieConfig)
-                    if dead then toRemove[#toRemove + 1] = id end
+                    local okDead, isDead = pcall(function() return zomb:isDead() end)
+                    if okDead and isDead then
+                        toRemove[#toRemove + 1] = id
+                    else
+                        local okApply, dead = JaysSync.safeCall("applyToZombie", applyToZombie, zomb, state, fx, fy, zombieConfig)
+                        if okApply and dead then toRemove[#toRemove + 1] = id end
+                    end
                 end
             end
         end
         for i = 1, #toRemove do remoteZombies[toRemove[i]] = nil end
     end
 
-    -- Vehicles
+    -- Vehicles (skip vehicle we're driving)
     if hasVehicles then
         toRemove = {}
         for id, state in pairs(remoteVehicles) do
-            local age = clientTick - state.receivedTick
-            local fx, fy, stale = advanceDeadReckoning(state, vehicleConfig, age)
-            if stale then
+            -- Driver exclusion: don't fight our own vehicle input
+            if id == localVehicleID then
                 toRemove[#toRemove + 1] = id
             else
-                local vehicle = vehicleById[id]
-                if not vehicle then
+                local age = clientTick - state.receivedTick
+                local fx, fy, stale = advanceDeadReckoning(state, vehicleConfig, age)
+                if stale then
                     toRemove[#toRemove + 1] = id
                 else
-                    applyToVehicle(vehicle, state, fx, fy, vehicleConfig)
+                    local vehicle = vehicleById[id]
+                    if not vehicle then
+                        toRemove[#toRemove + 1] = id
+                    else
+                        JaysSync.safeCall("applyToVehicle", applyToVehicle, vehicle, state, fx, fy, vehicleConfig)
+                    end
                 end
             end
         end
@@ -289,8 +364,8 @@ local function onServerCommand(module, command, args)
     if command == JaysSync.CMD_PLAYER_STATES or command == JaysSync.CMD_PLAYER_IMMEDIATE then
         local snapDistSq = playerConfig.snapDist * playerConfig.snapDist
         for _, data in ipairs(args) do
-            if data.id ~= localID then
-                processSnapshot(remotePlayers, data.id, data, snapDistSq)
+            if data and data.id and data.id ~= localID then
+                processSnapshot(remotePlayers, data.id, data, snapDistSq, playerFields)
             end
         end
         JaysSync.log("Received", command, "#", #args)
@@ -298,14 +373,18 @@ local function onServerCommand(module, command, args)
     elseif command == JaysSync.CMD_ZOMBIE_STATES or command == JaysSync.CMD_ZOMBIE_IMMEDIATE then
         local snapDistSq = zombieConfig.snapDist * zombieConfig.snapDist
         for _, data in ipairs(args) do
-            processSnapshot(remoteZombies, data.id, data, snapDistSq)
+            if data and data.id then
+                processSnapshot(remoteZombies, data.id, data, snapDistSq, zombieFields)
+            end
         end
         JaysSync.log("Received", command, "#", #args)
 
     elseif command == JaysSync.CMD_VEHICLE_STATES or command == JaysSync.CMD_VEHICLE_IMMEDIATE then
         local snapDistSq = vehicleConfig.snapDist * vehicleConfig.snapDist
         for _, data in ipairs(args) do
-            processSnapshot(remoteVehicles, data.id, data, snapDistSq)
+            if data and data.id then
+                processSnapshot(remoteVehicles, data.id, data, snapDistSq, vehicleFields)
+            end
         end
         JaysSync.log("Received", command, "#", #args)
     end

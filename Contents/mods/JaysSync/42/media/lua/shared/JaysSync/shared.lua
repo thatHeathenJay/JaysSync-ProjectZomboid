@@ -56,6 +56,17 @@ JaysSync.VEHICLE_PREDICT_DECAY      = 0.95
 JaysSync.VEHICLE_STALE_TICKS        = 180
 
 ------------------------------------------------------------
+-- Packet chunking
+------------------------------------------------------------
+JaysSync.BATCH_SIZE = 50  -- max entities per packet to stay under UDP limits
+
+------------------------------------------------------------
+-- World bounds (PZ map extents)
+------------------------------------------------------------
+JaysSync.WORLD_MIN = -1000
+JaysSync.WORLD_MAX = 50000
+
+------------------------------------------------------------
 -- Helpers
 ------------------------------------------------------------
 
@@ -68,6 +79,41 @@ function JaysSync.log(...)
     if JaysSync.DEBUG then
         print("[JaysSync]", ...)
     end
+end
+
+-- Non-debug error logging. Always prints.
+function JaysSync.warn(...)
+    print("[JaysSync WARN]", ...)
+end
+
+-- Validate a number is finite and within world bounds.
+function JaysSync.isValidPos(n)
+    if type(n) ~= "number" then return false end
+    -- NaN check: NaN ~= NaN
+    if n ~= n then return false end
+    -- Inf check
+    if n == math.huge or n == -math.huge then return false end
+    if n < JaysSync.WORLD_MIN or n > JaysSync.WORLD_MAX then return false end
+    return true
+end
+
+-- Validate a snapshot has sane x,y,z coordinates.
+function JaysSync.isValidSnapshot(data)
+    if not data then return false end
+    return JaysSync.isValidPos(data.x)
+       and JaysSync.isValidPos(data.y)
+       and (data.z == nil or JaysSync.isValidPos(data.z))
+end
+
+-- Safe pcall wrapper that logs errors instead of crashing.
+-- Returns true + results on success, false on error.
+function JaysSync.safeCall(context, fn, ...)
+    local results = { pcall(fn, ...) }
+    if not results[1] then
+        JaysSync.warn(context, "error:", tostring(results[2]))
+        return false
+    end
+    return unpack(results)
 end
 
 -- Generic throttle check. Returns true if should throttle (too soon).

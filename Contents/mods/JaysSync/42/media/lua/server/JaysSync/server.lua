@@ -26,12 +26,32 @@ local playerPosCache = {}       -- [{x,y}] pre-computed once per broadcast cycle
 
 ------------------------------------------------------------
 -- Safe send wrapper
+-- Note: 'zombie' here is the PZ Java namespace (zombie.network.GameServer),
+-- NOT a zombie entity. Stored as upvalue to avoid confusion with function params.
 ------------------------------------------------------------
 
+local _pzNetwork = zombie and zombie.network
+
 local function safeSend(cmd, data)
-    if zombie and zombie.network and zombie.network.GameServer
-       and zombie.network.GameServer.udpEngine then
+    if _pzNetwork and _pzNetwork.GameServer
+       and _pzNetwork.GameServer.udpEngine then
         sendServerCommand(JaysSync.MOD_ID, cmd, data)
+    end
+end
+
+-- Send a batch in chunks to stay under UDP packet limits.
+local function safeSendChunked(cmd, batch)
+    local batchSize = JaysSync.BATCH_SIZE
+    if #batch <= batchSize then
+        safeSend(cmd, batch)
+        return
+    end
+    for i = 1, #batch, batchSize do
+        local chunk = {}
+        for j = i, math.min(i + batchSize - 1, #batch) do
+            chunk[#chunk + 1] = batch[j]
+        end
+        safeSend(cmd, chunk)
     end
 end
 
@@ -41,12 +61,15 @@ end
 
 local function refreshPlayerPositions()
     playerPosCache = {}
-    local players = getOnlinePlayers()
-    if not players then return end
+    local ok, players = JaysSync.safeCall("refreshPlayerPositions", getOnlinePlayers)
+    if not ok or not players then return end
     for i = 0, players:size() - 1 do
         local p = players:get(i)
         if p then
-            playerPosCache[#playerPosCache + 1] = { x = p:getX(), y = p:getY() }
+            local px, py = p:getX(), p:getY()
+            if JaysSync.isValidPos(px) and JaysSync.isValidPos(py) then
+                playerPosCache[#playerPosCache + 1] = { x = px, y = py }
+            end
         end
     end
 end
@@ -62,7 +85,7 @@ local function nearestPlayerDistSq(x, y)
 end
 
 ------------------------------------------------------------
--- Player sync (preserved from original)
+-- Player sync
 ------------------------------------------------------------
 
 local function getMoveState(player)
@@ -80,9 +103,20 @@ end
 local function buildPlayerSnapshot(player, prev, dt)
     local id = player:getOnlineID()
     local x, y, z = player:getX(), player:getY(), player:getZ()
+
+    if not JaysSync.isValidPos(x) or not JaysSync.isValidPos(y) then
+        JaysSync.warn("Invalid player position for", id, "x:", x, "y:", y)
+        return nil, nil
+    end
+
     local dir = player:getDirectionAngle()
     local moveState = getMoveState(player)
-    local health = player:getBodyDamage():getOverallBodyHealth()
+
+    local ok, bodyDamage = pcall(function() return player:getBodyDamage() end)
+    local health = 100
+    if ok and bodyDamage then
+        health = bodyDamage:getOverallBodyHealth()
+    end
 
     local vx, vy = 0, 0
     if prev and dt > 0 then
@@ -107,17 +141,18 @@ local function broadcastAllPlayers()
     for i = 0, players:size() - 1 do
         local player = players:get(i)
         if player then
-            local id = player:getOnlineID()
-            local prev = trackedPlayers[id]
-            local dt = prev and (jsTick - prev.jsTick) or 0
-            local snapshot, newTracked = buildPlayerSnapshot(player, prev, dt)
-            trackedPlayers[id] = newTracked
-            batch[#batch + 1] = snapshot
+            local ok, snapshot, newTracked = JaysSync.safeCall("buildPlayerSnapshot",
+                buildPlayerSnapshot, player, trackedPlayers[player:getOnlineID()],
+                trackedPlayers[player:getOnlineID()] and (jsTick - trackedPlayers[player:getOnlineID()].jsTick) or 0)
+            if ok and snapshot then
+                trackedPlayers[player:getOnlineID()] = newTracked
+                batch[#batch + 1] = snapshot
+            end
         end
     end
 
     if #batch > 0 then
-        safeSend(JaysSync.CMD_PLAYER_STATES, batch)
+        safeSendChunked(JaysSync.CMD_PLAYER_STATES, batch)
         JaysSync.log("Broadcast", #batch, "players")
     end
 end
@@ -129,6 +164,7 @@ local function sendPlayerImmediate(player)
     local prev = trackedPlayers[id]
     local dt = prev and (jsTick - prev.jsTick) or 0
     local snapshot, newTracked = buildPlayerSnapshot(player, prev, dt)
+    if not snapshot then return end
     trackedPlayers[id] = newTracked
 
     safeSend(JaysSync.CMD_PLAYER_IMMEDIATE, { snapshot })
@@ -159,6 +195,12 @@ end
 local function buildZombieSnapshot(zomb, prev, dt)
     local id = zomb:getOnlineID()
     local x, y, z = zomb:getX(), zomb:getY(), zomb:getZ()
+
+    if not JaysSync.isValidPos(x) or not JaysSync.isValidPos(y) then
+        JaysSync.warn("Invalid zombie position for", id, "x:", x, "y:", y)
+        return nil
+    end
+
     local dir = zomb:getDirectionAngle()
     local health = zomb:getHealth()
     local crawling = zomb:isCrawling()
@@ -180,8 +222,8 @@ end
 local function broadcastZombies()
     local cell = getCell()
     if not cell then return end
-    local zombieList = cell:getZombieList()
-    if not zombieList then return end
+    local ok, zombieList = JaysSync.safeCall("getZombieList", function() return cell:getZombieList() end)
+    if not ok or not zombieList then return end
 
     local syncDistSq = JaysSync.ZOMBIE_SYNC_DISTANCE * JaysSync.ZOMBIE_SYNC_DISTANCE
     if #playerPosCache == 0 then return end
@@ -190,26 +232,31 @@ local function broadcastZombies()
     local seen = {}
     for i = 0, zombieList:size() - 1 do
         local zomb = zombieList:get(i)
-        if zomb and zomb:getHealth() > 0 then
-            local id = zomb:getOnlineID()
-            local zx, zy = zomb:getX(), zomb:getY()
-            local dSq = nearestPlayerDistSq(zx, zy)
-
-            if dSq <= syncDistSq then
-                seen[id] = true
-                local prev = trackedZombies[id]
-                local dt = prev and (jsTick - prev.jsTick) or 0
-                trackedZombies[id] = {
-                    x = zx, y = zy, z = zomb:getZ(),
-                    dir = zomb:getDirectionAngle(),
-                    health = zomb:getHealth(),
-                    crawling = zomb:isCrawling(),
-                    distSq = dSq,
-                    jsTick = jsTick,
-                    sentImmediate = prev and prev.sentImmediate or 0,
-                    -- store prev for velocity calc
-                    _prevX = prev and prev.x, _prevY = prev and prev.y, _dt = dt
-                }
+        if zomb then
+            local zOk, zHealth = pcall(function() return zomb:getHealth() end)
+            if zOk and zHealth and zHealth > 0 then
+                local id = zomb:getOnlineID()
+                if id then
+                    local zx, zy = zomb:getX(), zomb:getY()
+                    if JaysSync.isValidPos(zx) and JaysSync.isValidPos(zy) then
+                        local dSq = nearestPlayerDistSq(zx, zy)
+                        if dSq <= syncDistSq then
+                            seen[id] = true
+                            local prev = trackedZombies[id]
+                            local dt = prev and (jsTick - prev.jsTick) or 0
+                            trackedZombies[id] = {
+                                x = zx, y = zy, z = zomb:getZ(),
+                                dir = zomb:getDirectionAngle(),
+                                health = zHealth,
+                                crawling = zomb:isCrawling(),
+                                distSq = dSq,
+                                jsTick = jsTick,
+                                sentImmediate = prev and prev.sentImmediate or 0,
+                                _prevX = prev and prev.x, _prevY = prev and prev.y, _dt = dt
+                            }
+                        end
+                    end
+                end
             end
         end
     end
@@ -261,15 +308,15 @@ local function broadcastZombies()
     end
 
     if #batch > 0 then
-        safeSend(JaysSync.CMD_ZOMBIE_STATES, batch)
+        safeSendChunked(JaysSync.CMD_ZOMBIE_STATES, batch)
         JaysSync.log("Broadcast", #batch, "zombies")
     end
 end
 
 local function sendZombieImmediate(zomb, forceHealth)
     if not zomb then return end
-    local id = zomb:getOnlineID()
-    if not id then return end
+    local ok, id = pcall(function() return zomb:getOnlineID() end)
+    if not ok or not id then return end
 
     -- OnZombieDead bypasses throttle via forceHealth
     if not forceHealth and JaysSync.throttle(lastImmediateZombie, id, jsTick, JaysSync.ZOMBIE_IMMEDIATE_COOLDOWN) then
@@ -279,6 +326,7 @@ local function sendZombieImmediate(zomb, forceHealth)
     local prev = trackedZombies[id]
     local dt = prev and (jsTick - prev.jsTick) or 0
     local snapshot = buildZombieSnapshot(zomb, prev, dt)
+    if not snapshot then return end
     if forceHealth then snapshot.hp = forceHealth end
 
     -- Mark as sent immediate this tick for dedup
@@ -295,23 +343,32 @@ end
 ------------------------------------------------------------
 
 local function buildVehicleSnapshot(vehicle, prev, dt)
-    local id = vehicle:getID()
+    local ok, id = pcall(function() return vehicle:getID() end)
+    if not ok or not id then return nil end
+
     local x, y, z = vehicle:getX(), vehicle:getY(), vehicle:getZ()
-    local speed = vehicle:getCurrentSpeedKmHour()
+
+    if not JaysSync.isValidPos(x) or not JaysSync.isValidPos(y) then
+        JaysSync.warn("Invalid vehicle position for", id, "x:", x, "y:", y)
+        return nil
+    end
+
+    local okSpeed, speed = pcall(function() return vehicle:getCurrentSpeedKmHour() end)
+    if not okSpeed then speed = 0 end
 
     local okAngle, angle = pcall(function() return vehicle:getAngleZ() end)
     if not okAngle then angle = nil end
 
     local towedId = nil
     if vehicle.getTowedVehicle then
-        local towed = vehicle:getTowedVehicle()
-        if towed and towed.getID then towedId = towed:getID() end
+        local okTow, towed = pcall(function() return vehicle:getTowedVehicle() end)
+        if okTow and towed and towed.getID then towedId = towed:getID() end
     end
 
     local towedBy = nil
     if vehicle.getTowedBy then
-        local tower = vehicle:getTowedBy()
-        if tower and tower.getID then towedBy = tower:getID() end
+        local okTow, tower = pcall(function() return vehicle:getTowedBy() end)
+        if okTow and tower and tower.getID then towedBy = tower:getID() end
     end
 
     local vx, vy = 0, 0
@@ -331,27 +388,33 @@ end
 local function broadcastVehicles()
     local cell = getCell()
     if not cell then return end
-    local vehicleList = cell:getVehicles()
-    if not vehicleList then return end
+    local okVl, vehicleList = JaysSync.safeCall("getVehicles", function() return cell:getVehicles() end)
+    if not okVl or not vehicleList then return end
     if #playerPosCache == 0 then return end
 
     local syncDistSq = JaysSync.VEHICLE_SYNC_DISTANCE * JaysSync.VEHICLE_SYNC_DISTANCE
     local included = {}  -- [vehicleID] = true
     local batch = {}
 
-    -- First pass: collect vehicles within range
+    -- Build vehicle map in single pass
     local vehiclesById = {}
     for i = 0, vehicleList:size() - 1 do
         local v = vehicleList:get(i)
-        if v then vehiclesById[v:getID()] = v end
+        if v then
+            local okId, vid = pcall(function() return v:getID() end)
+            if okId and vid then vehiclesById[vid] = v end
+        end
     end
 
     local function includeVehicle(vehicle, force)
         if not vehicle then return end
-        local vid = vehicle:getID()
+        local okId, vid = pcall(function() return vehicle:getID() end)
+        if not okId or not vid then return end
         if included[vid] then return end
 
         local vx, vy = vehicle:getX(), vehicle:getY()
+        if not JaysSync.isValidPos(vx) or not JaysSync.isValidPos(vy) then return end
+
         if not force then
             local dSq = nearestPlayerDistSq(vx, vy)
             if dSq > syncDistSq then return end
@@ -361,11 +424,12 @@ local function broadcastVehicles()
         local prev = trackedVehicles[vid]
         local dt = prev and (jsTick - prev.jsTick) or 0
         local snapshot = buildVehicleSnapshot(vehicle, prev, dt)
+        if not snapshot then return end
         batch[#batch + 1] = snapshot
 
         trackedVehicles[vid] = {
             x = vx, y = vy, z = vehicle:getZ(),
-            speed = vehicle:getCurrentSpeedKmHour(),
+            speed = snapshot.sp,
             jsTick = jsTick
         }
 
@@ -388,7 +452,7 @@ local function broadcastVehicles()
     end
 
     if #batch > 0 then
-        safeSend(JaysSync.CMD_VEHICLE_STATES, batch)
+        safeSendChunked(JaysSync.CMD_VEHICLE_STATES, batch)
         JaysSync.log("Broadcast", #batch, "vehicles")
     end
 end
@@ -412,7 +476,7 @@ local function purgeAllCaches()
 end
 
 ------------------------------------------------------------
--- Event hooks
+-- Event hooks (all wrapped in pcall to never crash the server)
 ------------------------------------------------------------
 
 local function onInitGlobalModData()
@@ -445,6 +509,9 @@ local function onInitGlobalModData()
     lastImmediateVehicle = {}
     playerPosCache = {}
 
+    -- Re-resolve PZ network reference in case it wasn't available at load time
+    _pzNetwork = zombie and zombie.network
+
     JaysSync.log("Server initialized")
 end
 
@@ -456,15 +523,15 @@ local function onTick()
                  or (jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
     if needPos then refreshPlayerPositions() end
 
-    -- Staggered broadcasts
+    -- Staggered broadcasts (each wrapped so one failure doesn't block others)
     if jsTick % JaysSync.BROADCAST_INTERVAL == 0 then
-        broadcastAllPlayers()
+        JaysSync.safeCall("broadcastPlayers", broadcastAllPlayers)
     end
     if jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0 then
-        broadcastZombies()
+        JaysSync.safeCall("broadcastZombies", broadcastZombies)
     end
     if jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0 then
-        broadcastVehicles()
+        JaysSync.safeCall("broadcastVehicles", broadcastVehicles)
     end
 
     -- Periodic stale purge
@@ -475,64 +542,74 @@ end
 
 local function onPlayerUpdate(player)
     if not player then return end
-    if checkPlayerStateChange(player) then
-        sendPlayerImmediate(player)
-    end
+    JaysSync.safeCall("onPlayerUpdate", function()
+        if checkPlayerStateChange(player) then
+            sendPlayerImmediate(player)
+        end
+    end)
 end
 
 local function onPlayerDisconnect(player)
     if not player then return end
-    local id = player:getOnlineID()
-    trackedPlayers[id] = nil
-    lastImmediatePlayer[id] = nil
-    JaysSync.log("Cleaned up player", id)
+    local ok, id = pcall(function() return player:getOnlineID() end)
+    if ok and id then
+        trackedPlayers[id] = nil
+        lastImmediatePlayer[id] = nil
+        JaysSync.log("Cleaned up player", id)
+    end
 end
 
 -- Zombie: combat hit
 local function onHitZombie(zomb)
-    sendZombieImmediate(zomb)
+    JaysSync.safeCall("onHitZombie", sendZombieImmediate, zomb)
 end
 
 -- Zombie: death (bypass throttle, force health=0)
 local function onZombieDead(zomb)
     if not zomb then return end
-    sendZombieImmediate(zomb, 0)
-    -- Clean up tracking
-    local id = zomb:getOnlineID()
-    if id then
-        trackedZombies[id] = nil
-        zombieHealthCache[id] = nil
-        zombieCrawlCache[id] = nil
-        lastImmediateZombie[id] = nil
-    end
+    JaysSync.safeCall("onZombieDead", function()
+        sendZombieImmediate(zomb, 0)
+        local ok, id = pcall(function() return zomb:getOnlineID() end)
+        if ok and id then
+            trackedZombies[id] = nil
+            zombieHealthCache[id] = nil
+            zombieCrawlCache[id] = nil
+            lastImmediateZombie[id] = nil
+        end
+    end)
 end
 
 -- Zombie: health or crawl state change
 local function onZombieUpdate(zomb)
     if not zomb then return end
-    local id = zomb:getOnlineID()
-    if not id then return end
+    JaysSync.safeCall("onZombieUpdate", function()
+        local ok, id = pcall(function() return zomb:getOnlineID() end)
+        if not ok or not id then return end
 
-    local currentHealth = zomb:getHealth()
-    local currentCrawling = zomb:isCrawling()
-    local prevHealth = zombieHealthCache[id]
-    local prevCrawling = zombieCrawlCache[id]
+        local okH, currentHealth = pcall(function() return zomb:getHealth() end)
+        local okC, currentCrawling = pcall(function() return zomb:isCrawling() end)
+        if not okH or not okC then return end
 
-    zombieHealthCache[id] = currentHealth
-    zombieCrawlCache[id] = currentCrawling
+        local prevHealth = zombieHealthCache[id]
+        local prevCrawling = zombieCrawlCache[id]
 
-    -- Only trigger if something actually changed
-    if (prevHealth and prevHealth ~= currentHealth) or (prevCrawling ~= nil and prevCrawling ~= currentCrawling) then
-        sendZombieImmediate(zomb)
-    end
+        zombieHealthCache[id] = currentHealth
+        zombieCrawlCache[id] = currentCrawling
+
+        if (prevHealth and prevHealth ~= currentHealth) or (prevCrawling ~= nil and prevCrawling ~= currentCrawling) then
+            sendZombieImmediate(zomb)
+        end
+    end)
 end
 
 -- Zombie: AI state change (idle->attack, etc.)
 local function onAIStateChange(character)
     if not character then return end
-    if instanceof(character, "IsoZombie") then
-        sendZombieImmediate(character)
-    end
+    JaysSync.safeCall("onAIStateChange", function()
+        if instanceof(character, "IsoZombie") then
+            sendZombieImmediate(character)
+        end
+    end)
 end
 
 ------------------------------------------------------------
