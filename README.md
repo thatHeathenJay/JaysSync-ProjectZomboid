@@ -106,6 +106,19 @@ All sync follows the same pattern:
 
 ## Changelog
 
+### v1.5 - Intense Audit Fixes
+- Fixed critical infinite loop bug in angle interpolation when receiving Infinity values
+- Fixed combat exclusion staying permanently active after mod data reload
+- Individual zombie pcall wrapping in broadcast loop — one bad zombie no longer kills the entire broadcast
+- Split vehicle state apply into independent pcalls — one failed state check no longer skips the rest
+- Added direction angle validation (isFinite) on all server snapshots and client interpolation
+- Added existence checks for getDirectionAngle, isSneaking, getPlayerByOnlineID with warnings
+- Cached getOnlineID in broadcastAllPlayers (was called 4x per player per broadcast)
+- refreshPlayerPositions now only runs when zombie sync or a broadcast needs it
+- Velocity capped at 15 tiles/tick to prevent teleport prediction spikes
+- warn() rate-limited to 5 per context per 300 ticks to prevent console spam
+- Verified all API methods against PZ Build 42 game source files
+
 ### v1.4 - Combat Awareness
 - Threat proximity sync: zombies within 3 tiles of any player get immediate position updates every 2 ticks
 - Combat exclusion: client stops overriding nearby zombie positions while the local player is attacking (prevents fighting PZ's combat system)
