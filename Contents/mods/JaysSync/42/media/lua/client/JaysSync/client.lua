@@ -38,6 +38,11 @@ local vehicleConfig  = {
 local zombieById     = {}
 local vehicleById    = {}
 
+-- Combat exclusion: don't override zombie positions near the local player during combat
+local COMBAT_EXCLUSION_DIST_SQ = 16  -- 4^2 tiles
+local COMBAT_EXCLUSION_TICKS   = 10  -- ticks to hold exclusion after last combat action
+local lastCombatTick           = -999
+
 ------------------------------------------------------------
 -- Snapshot field whitelists (only these fields are copied from network data)
 ------------------------------------------------------------
@@ -293,6 +298,17 @@ local function onClientTickInner()
     local localID = localPlayer:getOnlineID()
     if not localID then return end
 
+    -- Detect if local player is in combat (swinging/attacking)
+    local inCombat = false
+    local okAtk, isAtk = pcall(function() return localPlayer:isAttacking() end)
+    if okAtk and isAtk then
+        lastCombatTick = clientTick
+        inCombat = true
+    elseif (clientTick - lastCombatTick) < COMBAT_EXCLUSION_TICKS then
+        inCombat = true
+    end
+    local localX, localY = localPlayer:getX(), localPlayer:getY()
+
     -- Rebuild lookup caches only when we have remote zombies or vehicles
     local hasZombies = tableNotEmpty(remoteZombies)
     local hasVehicles = tableNotEmpty(remoteVehicles)
@@ -342,9 +358,19 @@ local function onClientTickInner()
                     if okDead and isDead then
                         toRemove[#toRemove + 1] = id
                     else
-                        local okApply, dead = JaysSync.safeCall("applyToZombie", applyToZombie, zomb, state, fx, fy,
-                            zombieConfig)
-                        if okApply and dead then toRemove[#toRemove + 1] = id end
+                        -- Combat exclusion: don't override nearby zombie positions while we're fighting
+                        local skip = false
+                        if inCombat then
+                            local dx, dy = fx - localX, fy - localY
+                            if (dx * dx + dy * dy) <= COMBAT_EXCLUSION_DIST_SQ then
+                                skip = true
+                            end
+                        end
+                        if not skip then
+                            local okApply, dead = JaysSync.safeCall("applyToZombie", applyToZombie, zomb, state, fx, fy,
+                                zombieConfig)
+                            if okApply and dead then toRemove[#toRemove + 1] = id end
+                        end
                     end
                 end
             end

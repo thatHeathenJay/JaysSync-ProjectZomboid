@@ -42,6 +42,7 @@ JaysSync.MAX_TRACKED_ZOMBIES        = 150 -- hard cap
 JaysSync.ZOMBIE_IMMEDIATE_COOLDOWN  = 3
 JaysSync.ZOMBIE_THREAT_DISTANCE_SQ  = 9   -- 3^2 tiles — immediate sync when zombie is this close to any player
 JaysSync.ZOMBIE_THREAT_COOLDOWN     = 2   -- ticks between threat proximity syncs per zombie
+JaysSync.ZOMBIE_THREAT_MAX_PER_TICK = 20  -- cap threat syncs per tick to avoid flooding UDP
 JaysSync.ZOMBIE_STALE_TICKS         = 300
 JaysSync.ZOMBIE_SNAP_DISTANCE       = 6.0
 JaysSync.ZOMBIE_INTERP_SPEED        = 0.40

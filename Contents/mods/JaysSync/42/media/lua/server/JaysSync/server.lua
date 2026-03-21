@@ -354,8 +354,10 @@ local function checkZombieThreatProximity()
     local ok, zombieList = pcall(function() return cell:getZombieList() end)
     if not ok or not zombieList then return end
 
+    local maxPerTick = JaysSync.ZOMBIE_THREAT_MAX_PER_TICK
     local batch = {}
     for i = 0, zombieList:size() - 1 do
+        if #batch >= maxPerTick then break end
         local zomb = zombieList:get(i)
         if zomb then
             local zOk, id = pcall(function() return zomb:getOnlineID() end)
@@ -601,12 +603,16 @@ local function onTick()
     local vehicleEnabled = JaysSync.VEHICLE_SYNC_ENABLED
     refreshPlayerPositions()
 
-    -- Threat proximity: sync zombies within melee range every tick
-    if zombieEnabled then
+    -- Staggered broadcasts (each wrapped so one failure doesn't block others)
+    local isBroadcastTick = (jsTick % JaysSync.BROADCAST_INTERVAL == 0)
+                         or (zombieEnabled and jsTick % JaysSync.ZOMBIE_BROADCAST_INTERVAL == 0)
+                         or (vehicleEnabled and jsTick % JaysSync.VEHICLE_BROADCAST_INTERVAL == 0)
+
+    -- Threat proximity: sync zombies within melee range (skip on broadcast ticks to avoid packet burst)
+    if zombieEnabled and not isBroadcastTick then
         JaysSync.safeCall("threatProximity", checkZombieThreatProximity)
     end
 
-    -- Staggered broadcasts (each wrapped so one failure doesn't block others)
     if jsTick % JaysSync.BROADCAST_INTERVAL == 0 then
         JaysSync.safeCall("broadcastPlayers", broadcastAllPlayers)
     end
