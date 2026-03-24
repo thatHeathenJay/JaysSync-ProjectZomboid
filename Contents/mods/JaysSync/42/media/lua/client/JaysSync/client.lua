@@ -9,7 +9,8 @@ JaysSync.log("Client script loaded")
 local remotePlayers  = {} -- [onlineID] = {x,y,z,vx,vy,dir,ms,hp,receivedTick,predX,predY,errorX,errorY}
 local remoteZombies  = {} -- [onlineID] = {x,y,z,vx,vy,dir,hp,cr,receivedTick,predX,predY,errorX,errorY}
 local remoteVehicles = {} -- [vehicleID] = {x,y,z,vx,vy,sp,ang,towId,towBy,receivedTick,predX,predY,errorX,errorY}
-local clientTick     = 0
+local clientTick          = 0
+local lookupsNeedRebuild  = false  -- set when a zombie/vehicle packet arrives
 
 -- Per-entity-type config (set in onInitGlobalModData from sandbox vars)
 local playerConfig   = {
@@ -154,28 +155,27 @@ end
 local function applyToPlayer(player, state, finalX, finalY, config)
     lerpPosition(player, finalX, finalY, state.z, config)
 
+    -- dir is now an IsoDirections name string ("N","NE","E","SE","S","SW","W","NW").
+    -- setDirectionAngle() does not exist in B42; use setDir() with IsoDirections enum.
     if state.dir then
         pcall(function()
-            player:setDirectionAngle(JaysSync.lerpAngle(player:getDirectionAngle(), state.dir, config.interpSpeed))
+            local target = IsoDirections[state.dir]
+            if target then player:setDir(target) end
         end)
     end
 
     applyMovementState(player, state.ms)
-
-    local age = clientTick - state.receivedTick
-    if state.hp and age < 10 then
-        pcall(function()
-            player:getBodyDamage():setOverallBodyHealth(state.hp)
-        end)
-    end
+    -- Player health is synced natively by PZ; setOverallBodyHealth() does not exist in B42.
 end
 
 local function applyToZombie(zomb, state, finalX, finalY, config)
     lerpPosition(zomb, finalX, finalY, state.z, config)
 
+    -- dir is an IsoDirections name string ("N","NE","E","SE","S","SW","W","NW").
     if state.dir then
         pcall(function()
-            zomb:setDirectionAngle(JaysSync.lerpAngle(zomb:getDirectionAngle(), state.dir, config.interpSpeed))
+            local target = IsoDirections[state.dir]
+            if target then zomb:setDir(target) end
         end)
     end
 
@@ -195,7 +195,8 @@ local function applyToZombie(zomb, state, finalX, finalY, config)
     end
 
     if state.hp and state.hp <= 0 then
-        pcall(function() zomb:setDead(true) end)
+        -- setDead() does not exist in B42. Health=0 signals PZ's own engine to kill the zombie;
+        -- we signal removal from our state table so we stop fighting PZ's death sequence.
         return true -- signal removal
     end
     return false
@@ -204,10 +205,14 @@ end
 local function applyToVehicle(vehicle, state, finalX, finalY, config)
     lerpPosition(vehicle, finalX, finalY, state.z, config)
 
+    -- setAngleZ() does not exist in B42. Use setAngles(x, y, z); X/Y stay at their current
+    -- values (getAngleX/Y confirmed in ISVehicleAngles.lua). Z is the yaw we want to set.
     if state.ang then
         pcall(function()
-            local current = vehicle:getAngleZ()
-            vehicle:setAngleZ(JaysSync.lerpAngleRad(current, state.ang, config.interpSpeed))
+            local newZ = JaysSync.lerpAngleRad(vehicle:getAngleZ(), state.ang, config.interpSpeed)
+            local okX, ax = pcall(function() return vehicle:getAngleX() end)
+            local okY, ay = pcall(function() return vehicle:getAngleY() end)
+            vehicle:setAngles(okX and ax or 0, okY and ay or 0, newZ)
         end)
     end
 
@@ -321,11 +326,13 @@ local function onClientTickInner()
     end
     local localX, localY = localPlayer:getX(), localPlayer:getY()
 
-    -- Rebuild lookup caches only when we have remote zombies or vehicles
+    -- Rebuild lookup caches only when a new zombie/vehicle packet arrived this tick.
+    -- Rebuilding every frame is O(Z+V) and grows expensive as zombie counts increase.
     local hasZombies = tableNotEmpty(remoteZombies)
     local hasVehicles = tableNotEmpty(remoteVehicles)
-    if hasZombies or hasVehicles then
+    if (hasZombies or hasVehicles) and lookupsNeedRebuild then
         rebuildLookupCaches()
+        lookupsNeedRebuild = false
     end
 
     -- Get local player's vehicle ID for driver exclusion
@@ -456,6 +463,7 @@ local function onServerCommand(module, command, args)
                 processSnapshot(remoteZombies, data.id, data, snapDistSq, zombieFields)
             end
         end
+        lookupsNeedRebuild = true
         JaysSync.log("Received", command, "#", #args)
     elseif (command == JaysSync.CMD_VEHICLE_STATES or command == JaysSync.CMD_VEHICLE_IMMEDIATE)
         and JaysSync.VEHICLE_SYNC_ENABLED then
@@ -465,6 +473,7 @@ local function onServerCommand(module, command, args)
                 processSnapshot(remoteVehicles, data.id, data, snapDistSq, vehicleFields)
             end
         end
+        lookupsNeedRebuild = true
         JaysSync.log("Received", command, "#", #args)
     end
 end

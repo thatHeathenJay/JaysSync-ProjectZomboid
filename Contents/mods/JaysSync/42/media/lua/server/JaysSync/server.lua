@@ -110,8 +110,13 @@ local function buildPlayerSnapshot(player, prev, dt)
         return nil, nil
     end
 
-    local okDir, dir = pcall(function() return player:getDirectionAngle() end)
-    if not okDir or not JaysSync.isFinite(dir) then dir = 0 end
+    -- getDir() returns IsoDirections enum; .name() gives "N","NE","E" etc.
+    local dir = nil
+    local okDir, d = pcall(function() return player:getDir() end)
+    if okDir and d then
+        local okN, name = pcall(function() return d:name() end)
+        if okN and name then dir = name end
+    end
     local moveState = getMoveState(player)
 
     local ok, bodyDamage = pcall(function() return player:getBodyDamage() end)
@@ -189,9 +194,11 @@ local function checkPlayerStateChange(player)
     if currentState ~= prev.moveState then return true end
 
     if currentState ~= JaysSync.STATE_IDLE then
-        local dirDelta = math.abs(player:getDirectionAngle() - prev.dir)
-        if dirDelta > 180 then dirDelta = 360 - dirDelta end
-        if dirDelta > 45 then return true end
+        local okD, d = pcall(function() return player:getDir() end)
+        if okD and d then
+            local okN, name = pcall(function() return d:name() end)
+            if okN and name and prev.dir and name ~= prev.dir then return true end
+        end
     end
 
     return false
@@ -213,10 +220,13 @@ local function buildZombieSnapshot(zomb, prev, dt)
         return nil
     end
 
-    local dir = 0
-    if zomb.getDirectionAngle then
-        local okDir, d = pcall(function() return zomb:getDirectionAngle() end)
-        if okDir and JaysSync.isFinite(d) then dir = d end
+    local dir = nil
+    if zomb.getDir then
+        local okDir, d = pcall(function() return zomb:getDir() end)
+        if okDir and d then
+            local okN, name = pcall(function() return d:name() end)
+            if okN and name then dir = name end
+        end
     end
 
     local okH, health = pcall(function() return zomb:getHealth() end)
@@ -271,10 +281,13 @@ local function broadcastZombies()
                 local prev = trackedZombies[id]
                 local dt = prev and (jsTick - prev.jsTick) or 0
 
-                local dir = 0
-                if zomb.getDirectionAngle then
-                    local d = zomb:getDirectionAngle()
-                    if JaysSync.isFinite(d) then dir = d end
+                local dir = nil
+                if zomb.getDir then
+                    local okD, d = pcall(function() return zomb:getDir() end)
+                    if okD and d then
+                        local okN, name = pcall(function() return d:name() end)
+                        if okN then dir = name end
+                    end
                 end
 
                 local crawling = false
@@ -307,10 +320,13 @@ local function broadcastZombies()
     end
 
     -- Build batch, cap at MAX_TRACKED_ZOMBIES
+    -- Only include zombies seen THIS broadcast cycle — sending stale positions from
+    -- prior tracking cycles causes clients to teleport zombies to wrong locations.
     local batch = {}
     for id, data in pairs(trackedZombies) do
-        -- Skip if already sent via immediate this tick
-        if data.sentImmediate ~= jsTick then
+        -- Only broadcast currently-visible zombies; stale entries stay for purge window
+        -- but must not be sent (their positions are outdated and would cause desync).
+        if seen[id] and data.sentImmediate ~= jsTick then
             local vx, vy = 0, 0
             if data._prevX and data._dt and data._dt > 0 then
                 vx = (data.x - data._prevX) / data._dt
@@ -651,7 +667,8 @@ local function onTick()
     end
 
     -- Threat proximity: sync zombies within melee range (skip on broadcast ticks to avoid packet burst)
-    if zombieEnabled and not isBroadcastTick then
+    -- Run every 3 non-broadcast ticks — full zombie list scan, throttling prevents O(Z)/tick buildup.
+    if zombieEnabled and not isBroadcastTick and jsTick % 3 == 1 then
         JaysSync.safeCall("threatProximity", checkZombieThreatProximity)
     end
 
@@ -719,6 +736,10 @@ local function onZombieUpdate(zomb)
     JaysSync.safeCall("onZombieUpdate", function()
         local ok, id = pcall(function() return zomb:getOnlineID() end)
         if not ok or not id then return end
+
+        -- Skip out-of-range zombies entirely: clients don't know about them,
+        -- so health/crawl change detection is pointless and wastes pcall budget.
+        if not trackedZombies[id] then return end
 
         local okH, currentHealth = pcall(function() return zomb:getHealth() end)
         local okC, currentCrawling = pcall(function() return zomb:isCrawling() end)

@@ -137,6 +137,22 @@ All sync follows the same pattern:
 
 ## Changelog
 
+### v1.6 - Desync Root Cause Fix + B42 API Audit
+
+**Root cause fix — 15–20 minute zombie desync:**
+- `broadcastZombies` was iterating all of `trackedZombies` (including stale entries held for up to 300 ticks) and broadcasting their last-known positions as current ground truth. Every zombie that passed through sync range and left contributed a "ghost" position that was re-sent every broadcast cycle. This compounded over time as more zombies cycled in and out of tracking. Fixed: batch now only includes zombies observed alive and in range during the current broadcast cycle (`seen` set).
+
+**Performance fixes:**
+- `onZombieUpdate` hook now returns immediately for zombies not in `trackedZombies` — eliminates unnecessary pcall overhead for all out-of-range zombies every AI update tick
+- Threat proximity check throttled to every 3 non-broadcast ticks (was every non-broadcast tick) — reduces full O(Z) zombie list scans from ~58/s to ~20/s at 60 TPS
+- Client lookup cache (`rebuildLookupCaches`) now only runs when a new zombie or vehicle packet has been received — `lookupsNeedRebuild` dirty flag prevents O(Z+V) rebuild every rendered frame
+
+**B42 API audit fixes (all were silently non-functional):**
+- Direction sync: replaced `getDirectionAngle()`/`setDirectionAngle()` (do not exist in B42) with `getDir():name()` on server and `setDir(IsoDirections[state.dir])` on client — direction sync now actually works for the first time
+- Vehicle angle: replaced `setAngleZ()` (does not exist) with `setAngles(x, y, z)` reading current `getAngleX()`/`getAngleY()` — vehicle rotation sync now actually works
+- Removed `zombie:setDead(true)` (does not exist in B42) — PZ's engine kills zombies when health reaches 0 via its own systems
+- Removed `player:getBodyDamage():setOverallBodyHealth()` (setter does not exist; only getter exists) — PZ syncs player health natively over the network, no Lua override needed
+
 ### v1.5 - Intense Audit Fixes
 - Fixed critical infinite loop bug in angle interpolation when receiving Infinity values
 - Fixed combat exclusion staying permanently active after mod data reload
